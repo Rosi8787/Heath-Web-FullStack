@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+
+  backend:
+    build:
+      context: ./backend-app
+    ports:
+      - "3000:3000"
+
+    env_file:
+      - ./backend-app/.env
+
+    depends_on:
+      - ocr
+
+  ocr:
+    build:
+      context: ./ocr-service
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./ocr-service/temp:/app/temp
