@@ -6,6 +6,7 @@ import {
   Req,
   Get,
   UseGuards,
+  Body,
 } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -35,6 +36,9 @@ export class NutritionController {
     @UploadedFile()
     file: Express.Multer.File,
 
+    @Body("productName")
+    productName: string,
+
     @Req() req: any,
   ) {
 
@@ -43,6 +47,7 @@ export class NutritionController {
 
     return this.nutritionService.scanNutrition(
       userId,
+      productName,
       file,
     );
   }

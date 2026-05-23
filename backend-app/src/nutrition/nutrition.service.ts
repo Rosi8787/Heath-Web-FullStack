@@ -1,34 +1,61 @@
-// src/nutrition/nutrition.service.ts
+import { Injectable, BadRequestException } from '@nestjs/common';
 
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { AiService } from '../ai/ai.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import axios from 'axios';
+import FormData from 'form-data';
 
 @Injectable()
 export class NutritionService {
-  constructor(
-    private prisma: PrismaService,
-    private aiService: AiService,
-  ) {}
+  getDailySummary(userId: any) {
+    throw new Error('Method not implemented.');
+  }
+  getHistory(userId: any) {
+    throw new Error('Method not implemented.');
+  }
+  constructor(private prisma: PrismaService) {}
 
-  async scanNutrition(userId: string, file: Express.Multer.File) {
-    // OCR ANALYZE
-    const aiResult = await this.aiService.analyzeNutritionImage(file);
+  async scanNutrition(
+    userId: string,
+    productName: string,
+    file: Express.Multer.File,
+  ) {
+    // OCR
+    const formData = new FormData();
 
-    // SAVE DATABASE
+    formData.append('file', file.buffer, file.originalname);
+
+    const ocrResponse = await axios.post(
+      'http://127.0.0.1:8000/ocr',
+      formData,
+      {
+        headers: formData.getHeaders?.() || {},
+      },
+    );
+
+    const extractedText = ocrResponse.data.text || '';
+
+    // cari gula
+    const sugarMatch = extractedText.match(/gula\s*(\d+)\s*g/i);
+
+    const sugar = sugarMatch ? parseInt(sugarMatch[1]) : 0;
+
+    // status gula
+    let sugarStatus = 'Low Sugar';
+
+    if (sugar >= 20) {
+      sugarStatus = 'High Sugar';
+    } else if (sugar >= 10) {
+      sugarStatus = 'Medium Sugar';
+    }
+
+    // simpan db
     const nutrition = await this.prisma.nutritionScan.create({
       data: {
         userId,
-
-        imageUrl: null,
-
-        productName: aiResult.productName,
-
-        sugar: aiResult.sugar,
-
-        sugarStatus: aiResult.sugarStatus,
-
-        aiSummary: aiResult.aiSummary,
+        productName,
+        sugar,
+        sugarStatus,
+        aiSummary: `This product contains ${sugar}g sugar and is classified as ${sugarStatus}.`,
       },
     });
 
@@ -37,46 +64,7 @@ export class NutritionService {
 
       data: nutrition,
 
-      extractedText: aiResult.extractedText,
-    };
-  }
-
-  async getHistory(userId: string) {
-    return this.prisma.nutritionScan.findMany({
-      where: {
-        userId,
-      },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
-
-  async getDailySummary(userId: string) {
-    const today = new Date();
-
-    today.setHours(0, 0, 0, 0);
-
-    const scans = await this.prisma.nutritionScan.findMany({
-      where: {
-        userId,
-
-        createdAt: {
-          gte: today,
-        },
-      },
-    });
-
-    const totalSugar = scans.reduce((acc, item) => acc + (item.sugar || 0), 0);
-
-    return {
-      totalScans: scans.length,
-
-      totalSugar,
-
-      scans,
+      // extractedText, || kalo mau kasi tau hasil OCRnya juga
     };
   }
 }
-  
