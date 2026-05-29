@@ -1,65 +1,86 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
-  // output   = "../generated/prisma"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id       String @id @default(cuid())
-  name     String
-  email    String @unique
-  password String
-  role     Role   @default(USER)
-
-  scans NutritionScan[]
-
-  subscription Subscription?
+  id           String  @id @default(cuid())
+  name         String
+  email        String  @unique
+  profileImage String?
+  password     String
+  role         Role    @default(USER)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  age    Int?
+  height Float?
+  weight Float?
+  gender String?
+
+  isVerified Boolean @default(false)
+
+  scans        NutritionScan[]
+  subscription Subscription?
+}
+
+model OTPVerification {
+  id        String   @id @default(cuid())
+
+  email     String
+  otp       String
+
+  expiresAt DateTime
+
+  verified  Boolean @default(false)
+
+  createdAt DateTime @default(now())
 }
 
 model NutritionScan {
   id String @id @default(cuid())
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
 
-  imageUrl String?
-
+  imageUrl    String?
   productName String?
 
-  sugar        Float? 
+  sugar       Float?
+  sugarStatus String?
+  aiSummary   String?
+  sugarGrade  String?
 
-  sugarStatus  String?
+  consumedAt DateTime @default(now())
 
-  aiSummary String?
+  consumptionPeriod String?
 
-  scannedAt DateTime @default(now())
+  dayKey   String?
+  weekKey  String?
+  monthKey String?
+  yearKey  String?
 
   createdAt DateTime @default(now())
+  scannedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Subscription {
   id String @id @default(cuid())
 
   userId String @unique
-  user   User   @relation(fields: [userId], references: [id])
 
   status    String
   expiresAt DateTime
 
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 enum Role {

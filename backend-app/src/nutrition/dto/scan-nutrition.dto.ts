@@ -1,12 +1,22 @@
 import {
   IsNotEmpty,
+  IsNumber,
+  IsOptional,
   IsString,
-} from "class-validator";
+} from 'class-validator';
 
 export class ScanNutritionDto {
 
+  // OPTIONAL
+  // karena kadang user scan dulu
+  @IsOptional()
   @IsString()
-    @IsNotEmpty()
-    productName!: string;
+  productName?: string;
 
+  // OPTIONAL
+  // karena kadang OCR berhasil
+  // kadang user input manual
+  @IsOptional()
+  @IsNumber()
+  sugar?: number;
 }

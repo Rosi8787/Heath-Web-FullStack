@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "NutritionScan" ADD COLUMN     "scannedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

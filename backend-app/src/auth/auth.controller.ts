@@ -1,4 +1,10 @@
-import { Body, Controller, Post } from '@nestjs/common';
+
+import {
+  Body,
+  Controller,
+  Patch,
+  Post,
+} from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 
@@ -7,15 +13,48 @@ import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+  ) {}
+
+  // =========================================
+  // REGISTER
+  // =========================================
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
+  async register(
+    @Body() dto: RegisterDto,
+  ) {
     return this.authService.register(dto);
   }
 
+  // =========================================
+  // LOGIN
+  // =========================================
+
   @Post('login')
-  login(@Body() dto: LoginDto) {
+  async login(
+    @Body() dto: LoginDto,
+  ) {
     return this.authService.login(dto);
+  }
+
+  // =========================================
+  // RESET PASSWORD
+  // =========================================
+
+  @Patch('reset-password')
+  async resetPassword(
+    @Body()
+    body: {
+      token: string;
+      newPassword: string;
+    },
+  ) {
+
+    return this.authService.resetPassword(
+      body.token,
+      body.newPassword,
+    );
   }
 }
