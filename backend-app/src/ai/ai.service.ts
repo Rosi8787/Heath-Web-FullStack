@@ -31,6 +31,7 @@ export class AiService {
     'karbohidrat',
     'carb',
   ];
+  OCR_URL: any;
 
   // =========================
   // PARSE GRAMS
