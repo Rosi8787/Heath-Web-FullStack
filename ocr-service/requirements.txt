@@ -83,7 +83,8 @@ notebook==7.4.7
 notebook_shim==0.2.4
 numpy==2.3.4
 opencv-contrib-python==4.10.0.84
-opencv-python==4.13.0.92
+# opencv-python==4.13.0.92
+opencv-python-headless==4.13.0.92
 opt-einsum==3.3.0
 packaging==25.0
 paddleocr==3.5.0
