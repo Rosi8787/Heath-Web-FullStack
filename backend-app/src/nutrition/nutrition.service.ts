@@ -116,7 +116,7 @@ export class NutritionService {
     formData.append('file', file.buffer, file.originalname);
 
     const ocrResponse = await axios.post(
-      'http://127.0.0.1:8000/ocr',
+      `${process.env.OCR_URL}/ocr`,
       formData,
       {
         headers: formData.getHeaders(),
@@ -520,47 +520,42 @@ export class NutritionService {
   // ======================================================
 
   async getHistory(userId: string, date?: string) {
+    console.log('LOGIN USER:', userId);
 
-  console.log("LOGIN USER:", userId);
+    const targetDate = date || new Date().toLocaleDateString('en-CA');
 
-  const targetDate =
-    date || new Date().toLocaleDateString('en-CA');
+    console.log('TARGET DATE:', targetDate);
 
-  console.log("TARGET DATE:", targetDate);
-
-  // TEST 1
-  const allByDate =
-    await this.prisma.nutritionScan.findMany({
+    // TEST 1
+    const allByDate = await this.prisma.nutritionScan.findMany({
       where: {
         dayKey: targetDate,
       },
     });
 
-  console.log("ALL BY DATE:", allByDate.length);
+    console.log('ALL BY DATE:', allByDate.length);
 
-  // TEST 2
-  const allByUser =
-    await this.prisma.nutritionScan.findMany({
+    // TEST 2
+    const allByUser = await this.prisma.nutritionScan.findMany({
       where: {
         userId,
       },
     });
 
-  console.log("ALL BY USER:", allByUser.length);
+    console.log('ALL BY USER:', allByUser.length);
 
-  // TEST 3
-  const finalData =
-    await this.prisma.nutritionScan.findMany({
+    // TEST 3
+    const finalData = await this.prisma.nutritionScan.findMany({
       where: {
         userId,
         dayKey: targetDate,
       },
     });
 
-  console.log("FINAL:", finalData.length);
+    console.log('FINAL:', finalData.length);
 
-  return finalData;
-} 
+    return finalData;
+  }
   // ======================================================
   // DAILY SUMMARY
   // ======================================================
