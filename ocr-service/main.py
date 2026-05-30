@@ -70,8 +70,18 @@ def preprocess_image(img: np.ndarray) -> np.ndarray:
 # OCR ENDPOINT
 # =========================
 
+@app.get("/")
+def health():
+    return {"status": "ok"}
+
 @app.post("/ocr")
 async def scan_ocr(file: UploadFile = File(...)):
+    
+    print("OCR HIT")
+    print(file.filename)
+    
+    print("========== OCR HIT ==========")
+    print(file.filename)
 
     temp_path = f"{TEMP_FOLDER}/{file.filename}"
 
