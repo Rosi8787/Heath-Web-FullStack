@@ -70,8 +70,13 @@ def preprocess_image(img: np.ndarray) -> np.ndarray:
 # OCR ENDPOINT
 # =========================
 
+from fastapi import FastAPI
+
+app = FastAPI()
+
 @app.get("/")
-def health():
+def root():
+    print("ROOT HIT")
     return {"status": "ok"}
 
 @app.post("/ocr")
