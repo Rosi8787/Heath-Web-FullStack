@@ -111,6 +111,10 @@ export class NutritionService {
     // SEND IMAGE TO OCR
     // ======================================================
 
+    if (!file) {
+      throw new BadRequestException('File not uploaded');
+    }
+
     const formData = new FormData();
 
     formData.append('file', file.buffer, file.originalname);

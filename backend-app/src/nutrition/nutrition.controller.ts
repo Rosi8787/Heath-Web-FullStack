@@ -39,7 +39,8 @@ export class NutritionController {
 
     @Req() req: any,
   ) {
-    console.log(file)
+    console.log(req.headers['content-type']);
+    console.log("FILE =", file);
     console.log('MASUK CONTROLLER');
 
     const userId = req.user.id;
