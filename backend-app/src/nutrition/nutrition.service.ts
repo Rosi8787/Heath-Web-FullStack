@@ -120,6 +120,8 @@ export class NutritionService {
       throw new BadRequestException('File not uploaded');
     }
 
+    console.log('FILE =', file);
+
     const formData = new FormData();
 
     formData.append('file', file.buffer, file.originalname);
