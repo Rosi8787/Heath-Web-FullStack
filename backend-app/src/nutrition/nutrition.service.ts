@@ -28,6 +28,11 @@ export class NutritionService {
   // ======================================================
 
   async scanNutrition(userId: string, dto: any, file: Express.Multer.File) {
+    console.log('FILE =', file);
+
+    if (!file) {
+      throw new BadRequestException('Image file is required');
+    }
     // const today = new Date().toISOString().split('T')[0];
     const today = new Date().toLocaleDateString('en-CA');
 
