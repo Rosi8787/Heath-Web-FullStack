@@ -8,7 +8,6 @@ import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class OtpService {
-  transporter: any;
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
@@ -20,19 +19,6 @@ export class OtpService {
   // =========================================
 
   async sendOtp(email: string) {
-    try {
-      const info = await this.transporter.sendMail({
-        from: '"Glucofy" <glucofy.health@gmail.com>',
-        to: email,
-        subject: 'Your Glucofy OTP Code',
-        html: `...`,
-      });
-
-      console.log('EMAIL SENT:', info.messageId);
-    } catch (error) {
-      console.error('EMAIL ERROR:', error);
-      throw error;
-    }
     // =========================================
     // CHECK USER
     // =========================================
@@ -51,13 +37,17 @@ export class OtpService {
     // GENERATE OTP
     // =========================================
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = Math.floor(
+      100000 + Math.random() * 900000,
+    ).toString();
 
     // =========================================
-    // EXPIRE 5 MINUTES
+    // EXPIRE 10 MINUTES
     // =========================================
 
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + 10 * 60 * 1000,
+    );
 
     // =========================================
     // DELETE OLD OTP
@@ -85,11 +75,28 @@ export class OtpService {
     // SEND EMAIL
     // =========================================
 
-    await this.mailService.sendOtp(email, otp);
+    try {
+      await this.mailService.sendOtp(
+        email,
+        otp,
+      );
+
+      console.log(
+        `OTP EMAIL SENT TO ${email}`,
+      );
+    } catch (error) {
+      console.error(
+        'EMAIL ERROR:',
+        error,
+      );
+
+      throw new BadRequestException(
+        'Failed to send OTP email',
+      );
+    }
 
     return {
       success: true,
-
       message: 'OTP sent successfully',
     };
   }
@@ -98,42 +105,37 @@ export class OtpService {
   // VERIFY OTP + LOGIN
   // =========================================
 
-  async verifyOtp(email: string, code: string) {
-    // =========================================
-    // FIND OTP
-    // =========================================
+  async verifyOtp(
+    email: string,
+    code: string,
+  ) {
+    const otpData =
+      await this.prisma.oTPVerification.findFirst({
+        where: {
+          email,
+          otp: code,
+          verified: false,
+        },
 
-    const otpData = await this.prisma.oTPVerification.findFirst({
-      where: {
-        email,
-        otp: code,
-        verified: false,
-      },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    // =========================================
-    // INVALID OTP
-    // =========================================
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
     if (!otpData) {
-      throw new BadRequestException('Invalid OTP');
+      throw new BadRequestException(
+        'Invalid OTP',
+      );
     }
 
-    // =========================================
-    // EXPIRED OTP
-    // =========================================
-
-    if (otpData.expiresAt < new Date()) {
-      throw new BadRequestException('OTP expired');
+    if (
+      otpData.expiresAt <
+      new Date()
+    ) {
+      throw new BadRequestException(
+        'OTP expired',
+      );
     }
-
-    // =========================================
-    // UPDATE VERIFIED
-    // =========================================
 
     await this.prisma.oTPVerification.update({
       where: {
@@ -145,48 +147,40 @@ export class OtpService {
       },
     });
 
-    // =========================================
-    // UPDATE USER VERIFIED
-    // =========================================
+    const user =
+      await this.prisma.user.update({
+        where: {
+          email,
+        },
 
-    const user = await this.prisma.user.update({
-      where: {
-        email,
-      },
+        data: {
+          isVerified: true,
+        },
+      });
 
-      data: {
-        isVerified: true,
-      },
-    });
+    const accessToken =
+      await this.jwtService.signAsync({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      });
 
-    // =========================================
-    // GENERATE JWT
-    // =========================================
-
-    const accessToken = await this.jwtService.signAsync({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    // =========================================
-    // RETURN
-    // =========================================
-
-    const resetToken = this.jwtService.sign(
-      {
-        email,
-        type: 'RESET_PASSWORD',
-      },
-      {
-        expiresIn: '10m',
-      },
-    );
+    const resetToken =
+      this.jwtService.sign(
+        {
+          email,
+          type: 'RESET_PASSWORD',
+        },
+        {
+          expiresIn: '10m',
+        },
+      );
 
     return {
       success: true,
 
-      message: 'OTP verified successfully',
+      message:
+        'OTP verified successfully',
 
       access_token: accessToken,
 
@@ -197,7 +191,8 @@ export class OtpService {
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified,
+        isVerified:
+          user.isVerified,
       },
     };
   }
