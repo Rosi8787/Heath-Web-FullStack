@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 
+print("APP FILE LOADED")
+
 app = FastAPI()
 
 @app.get("/")
