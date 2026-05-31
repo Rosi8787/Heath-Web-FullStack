@@ -395,7 +395,7 @@ export class AiService {
       //     },
       //   );
 
-      const response = await axios.post(`${this.OCR_URL}/ocr`, formData, {
+      const response = await axios.post(`${this.OCR_URL}ocr`, formData, {
         headers: formData.getHeaders(),
         maxBodyLength: Infinity,
       });
