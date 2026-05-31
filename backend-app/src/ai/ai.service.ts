@@ -398,12 +398,19 @@ export class AiService {
       console.log('OCR_URL=', this.OCR_URL);
       console.log(process.env.OCR_URL);
 
+      console.log('====================');
+      console.log('AKU MASUK OCR REQUEST');
+      console.log('====================');
+
       console.log('OCR_URL RAW =', process.env.OCR_URL);
 
       const OCR_URL = process.env.OCR_URL?.replace(/\/+$/, '');
 
       console.log('OCR_URL FINAL =', OCR_URL);
+      console.log('REQUEST URL =', `${OCR_URL}/ocr`);
 
+      console.log('OCR_URL RAW =', process.env.OCR_URL);
+      console.log('OCR_URL FINAL =', OCR_URL);
       console.log('REQUEST URL =', `${OCR_URL}/ocr`);
 
       const response = await axios.post(`${OCR_URL}/ocr`, formData, {
@@ -543,7 +550,6 @@ export class AiService {
 
         error: error?.message || 'Unknown error',
       };
-      
     }
   }
 }
