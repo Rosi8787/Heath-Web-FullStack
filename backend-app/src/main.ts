@@ -3,6 +3,10 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from "@nestjs/common";
 import dns from 'dns';
 
+dns.lookup('smtp.gmail.com', { all: true }, (err, addresses) => {
+  console.log('DNS RESULT:', addresses);
+});
+
 dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
