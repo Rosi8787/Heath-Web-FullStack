@@ -4,15 +4,7 @@ import * as nodemailer from 'nodemailer';
 @Injectable()
 export class MailService {
   // private transporter = nodemailer.createTransport({
-  //   service: 'gmail',
-  //   auth: {
-  //     user: process.env.MAIL_USER,
-  //     pass: process.env.MAIL_PASS,
-  //   },
-  // });
-
-  //   private transporter = nodemailer.createTransport({
-  //   host: 'smtp.gmail.com',
+  //   host: 'smtp-relay.brevo.com',
   //   port: 587,
   //   secure: false,
   //   auth: {
@@ -23,12 +15,13 @@ export class MailService {
 
   private transporter = nodemailer.createTransport({
     host: 'smtp-relay.brevo.com',
-    port: 587,
+    port: 2525,
     secure: false,
     auth: {
       user: process.env.MAIL_USER,
       pass: process.env.MAIL_PASS,
     },
+    connectionTimeout: 30000,
   });
 
   constructor() {
@@ -39,6 +32,12 @@ export class MailService {
       console.log('VERIFY RESULT');
       console.log(err);
       console.log(success);
+
+      if (err) {
+        console.error(err);
+      } else {
+        console.log('SMTP READY');
+      }
     });
   }
 
