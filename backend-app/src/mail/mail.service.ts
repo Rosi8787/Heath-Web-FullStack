@@ -13,16 +13,48 @@ export class MailService {
   //   },
   // });
 
+  // private transporter = nodemailer.createTransport({
+  //   host: 'smtp-relay.brevo.com',
+  //   port: 2525,
+  //   secure: false,
+  //   auth: {
+  //     user: process.env.MAIL_USER,
+  //     pass: process.env.MAIL_PASS,
+  //   },
+  //   connectionTimeout: 30000,
+  // });
+
   private transporter = nodemailer.createTransport({
     host: 'smtp-relay.brevo.com',
     port: 2525,
     secure: false,
+
     auth: {
       user: process.env.MAIL_USER,
       pass: process.env.MAIL_PASS,
     },
-    connectionTimeout: 30000,
+
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
+
+  // constructor() {
+  //   console.log('MAIL_USER =', process.env.MAIL_USER);
+  //   console.log('MAIL_PASS EXISTS =', !!process.env.MAIL_PASS);
+
+  //   this.transporter.verify((err, success) => {
+  //     console.log('VERIFY RESULT');
+  //     console.log(err);
+  //     console.log(success);
+
+  //     if (err) {
+  //       console.error(err);
+  //     } else {
+  //       console.log('SMTP READY');
+  //     }
+  //   });
+  // }
 
   constructor() {
     console.log('MAIL_USER =', process.env.MAIL_USER);
@@ -32,12 +64,6 @@ export class MailService {
       console.log('VERIFY RESULT');
       console.log(err);
       console.log(success);
-
-      if (err) {
-        console.error(err);
-      } else {
-        console.log('SMTP READY');
-      }
     });
   }
 
