@@ -11,6 +11,17 @@ export class MailService {
     },
   });
 
+  constructor() {
+    console.log('MAIL_USER =', process.env.MAIL_USER);
+    console.log('MAIL_PASS EXISTS =', !!process.env.MAIL_PASS);
+
+    this.transporter.verify((err, success) => {
+      console.log('VERIFY RESULT');
+      console.log(err);
+      console.log(success);
+    });
+  }
+
   // =========================================
   // SEND OTP
   // =========================================
