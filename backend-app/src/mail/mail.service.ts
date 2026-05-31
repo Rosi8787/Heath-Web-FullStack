@@ -3,7 +3,6 @@ import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
-  
   // private transporter = nodemailer.createTransport({
   //   service: 'gmail',
   //   auth: {
@@ -23,15 +22,12 @@ export class MailService {
   // });
 
   private transporter = nodemailer.createTransport({
-    host: '74.125.137.108',
+    host: 'smtp-relay.brevo.com',
     port: 587,
     secure: false,
     auth: {
       user: process.env.MAIL_USER,
       pass: process.env.MAIL_PASS,
-    },
-    tls: {
-      servername: 'smtp.gmail.com',
     },
   });
 
@@ -52,6 +48,7 @@ export class MailService {
 
   async sendOtp(email: string, code: string) {
     await this.transporter.sendMail({
+      from: '"Glucofy" <glucofy.health@gmail.com>',
       to: email,
       subject: 'Your Glucofy OTP Code',
       html: `

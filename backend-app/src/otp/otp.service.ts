@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class OtpService {
+  transporter: any;
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
@@ -19,6 +20,19 @@ export class OtpService {
   // =========================================
 
   async sendOtp(email: string) {
+    try {
+      const info = await this.transporter.sendMail({
+        from: '"Glucofy" <glucofy.health@gmail.com>',
+        to: email,
+        subject: 'Your Glucofy OTP Code',
+        html: `...`,
+      });
+
+      console.log('EMAIL SENT:', info.messageId);
+    } catch (error) {
+      console.error('EMAIL ERROR:', error);
+      throw error;
+    }
     // =========================================
     // CHECK USER
     // =========================================
