@@ -7,6 +7,20 @@ import numpy as np
 
 app = FastAPI()
 
+import os
+
+print("STARTING OCR INIT")
+ocr = PaddleOCR(
+    use_angle_cls=True,
+    lang="en"
+)
+print("OCR INIT DONE")
+
+@app.post("/test")
+async def test():
+    print("TEST HIT")
+    return {"ok": True}
+
 # =========================
 # INIT OCR
 # =========================
