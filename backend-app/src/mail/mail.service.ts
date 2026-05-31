@@ -3,6 +3,7 @@ import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
+  
   // private transporter = nodemailer.createTransport({
   //   service: 'gmail',
   //   auth: {
@@ -11,15 +12,28 @@ export class MailService {
   //   },
   // });
 
+  //   private transporter = nodemailer.createTransport({
+  //   host: 'smtp.gmail.com',
+  //   port: 587,
+  //   secure: false,
+  //   auth: {
+  //     user: process.env.MAIL_USER,
+  //     pass: process.env.MAIL_PASS,
+  //   },
+  // });
+
   private transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
-});
+    host: '74.125.137.108',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.MAIL_USER,
+      pass: process.env.MAIL_PASS,
+    },
+    tls: {
+      servername: 'smtp.gmail.com',
+    },
+  });
 
   constructor() {
     console.log('MAIL_USER =', process.env.MAIL_USER);
