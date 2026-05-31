@@ -398,10 +398,17 @@ export class AiService {
       console.log('OCR_URL=', this.OCR_URL);
       console.log(process.env.OCR_URL);
 
-      const response = await axios.post(`${this.OCR_URL}ocr`, formData, {
+      const OCR_URL = process.env.OCR_URL?.replace(/\/+$/, '');
+
+      const response = await axios.post(`${OCR_URL}/ocr`, formData, {
         headers: formData.getHeaders(),
         maxBodyLength: Infinity,
       });
+
+      // const response = await axios.post(`${this.OCR_URL}ocr`, formData, {
+      //   headers: formData.getHeaders(),
+      //   maxBodyLength: Infinity,
+      // });
 
       // =====================
       // OCR TEXT
