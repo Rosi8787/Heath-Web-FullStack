@@ -12,7 +12,7 @@ export class OtpController {
 
   @Get('mail-test')
   async mailTest() {
-    await this.mailService.sendOtp('glucofy.health@gmail.com', '123456');
+    await this.mailService.sendOtp('fatchurrosi17@gmail.com', '123456');
 
     return 'ok';
   }
