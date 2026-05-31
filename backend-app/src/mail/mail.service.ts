@@ -3,13 +3,23 @@ import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
+  // private transporter = nodemailer.createTransport({
+  //   service: 'gmail',
+  //   auth: {
+  //     user: process.env.MAIL_USER,
+  //     pass: process.env.MAIL_PASS,
+  //   },
+  // });
+
   private transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASS,
-    },
-  });
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+});
 
   constructor() {
     console.log('MAIL_USER =', process.env.MAIL_USER);
