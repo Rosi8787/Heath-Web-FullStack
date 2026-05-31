@@ -530,7 +530,11 @@ export class AiService {
     } catch (error: any) {
       console.log('OCR ANALYZE ERROR:');
 
-      console.log(error);
+      console.log({
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
 
       return {
         success: false,
@@ -539,6 +543,7 @@ export class AiService {
 
         error: error?.message || 'Unknown error',
       };
+      
     }
   }
 }
