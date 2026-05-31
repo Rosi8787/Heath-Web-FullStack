@@ -370,6 +370,8 @@ export class AiService {
   // =========================
 
   async analyzeNutritionImage(file: Express.Multer.File) {
+
+    console.log('🔥 ANALYZE NUTRITION DIPANGGIL');
     try {
       // =====================
       // FORM DATA
