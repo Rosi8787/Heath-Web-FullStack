@@ -24,20 +24,23 @@ export class MailService {
   //   connectionTimeout: 30000,
   // });
 
-  private transporter = nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 2525,
-    secure: false,
+private transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
 
-    auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASS,
-    },
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
 
-    tls: {
-      rejectUnauthorized: false,
-    },
-  });
+  connectionTimeout: 60000,
+  greetingTimeout: 60000,
+  socketTimeout: 60000,
+
+  logger: true,
+  debug: true,
+});
 
   // constructor() {
   //   console.log('MAIL_USER =', process.env.MAIL_USER);
