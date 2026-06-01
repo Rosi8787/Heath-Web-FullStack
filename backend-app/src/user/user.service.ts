@@ -215,6 +215,15 @@ export class UserService {
       throw new BadRequestException('Old password incorrect');
     }
 
+    // NEW PASSWORD CANNOT BE SAME AS OLD PASSWORD
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+
+    if (isSamePassword) {
+      throw new BadRequestException(
+        'New password cannot be the same as old password',
+      );
+    }
+
     // HASH NEW PASSWORD
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
@@ -223,7 +232,6 @@ export class UserService {
       where: {
         id: userId,
       },
-
       data: {
         password: hashedPassword,
       },
@@ -231,7 +239,7 @@ export class UserService {
 
     return {
       success: true,
-      message: 'Password changed',
+      message: 'Password changed successfully',
     };
   }
 }

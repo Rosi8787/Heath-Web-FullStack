@@ -17,6 +17,7 @@ import { UserService } from './user.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { memoryStorage } from 'multer';
+import { ChangePasswordDto } from './dto/reset.dto';
 
 @Controller('user')
 export class UserController {
@@ -95,13 +96,11 @@ export class UserController {
 
   @Patch('change-password')
   @UseGuards(JwtAuthGuard)
-  async changePassword(@Req() req, @Body() body) {
-    console.log(req.user);
-
+  async changePassword(@Req() req, @Body() dto: ChangePasswordDto) {
     return this.userService.changePassword(
       req.user.id,
-      body.oldPassword,
-      body.newPassword,
+      dto.oldPassword,
+      dto.newPassword,
     );
   }
 }

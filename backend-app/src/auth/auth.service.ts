@@ -153,7 +153,7 @@ export class AuthService {
       'Password confirmation does not match',
     );
   }
-
+  
   // =========================================
   // STRONG PASSWORD VALIDATION
   // =========================================
