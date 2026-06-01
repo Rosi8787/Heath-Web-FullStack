@@ -80,7 +80,7 @@ export class AuthService {
     }
 
     const payload = {
-      id: user.id,
+      id: user.id,  
       email: user.email,
       role: user.role,
     };
@@ -117,67 +117,105 @@ export class AuthService {
   // RESET PASSWORD
   // =========================================
 
-  async resetPassword(token: string, newPassword: string) {
-    // =========================================
-    // VALIDATION
-    // =========================================
+  async resetPassword(
+  token: string,
+  newPassword: string,
+  confirmPassword: string,
+) {
+  // =========================================
+  // VALIDATION
+  // =========================================
 
-    if (!token) {
-      throw new BadRequestException('Reset token required');
-    }
-
-    if (!newPassword) {
-      throw new BadRequestException('New password required');
-    }
-
-    if (newPassword.length < 6) {
-      throw new BadRequestException('Password minimum 6 characters');
-    }
-
-    // =========================================
-    // VERIFY TOKEN
-    // =========================================
-
-    let payload: any;
-
-    try {
-      payload = this.jwtService.verify(token);
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
-
-    // =========================================
-    // VALIDATE TYPE
-    // =========================================
-
-    if (payload.type !== 'RESET_PASSWORD') {
-      throw new UnauthorizedException('Invalid token type');
-    }
-
-    // =========================================
-    // HASH PASSWORD
-    // =========================================
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // =========================  ================
-    // UPDATE USER PASSWORD
-    // =========================================
-
-    await this.prisma.user.update({
-      where: {
-        email: payload.email,
-      },
-
-      data: {
-        password: hashedPassword,
-      },
-    });
-
-    return {
-      success: true,
-
-      message: 'Password reset successfully',
-    };
+  if (!token) {
+    throw new BadRequestException(
+      'Reset token required',
+    );
   }
+
+  if (!newPassword) {
+    throw new BadRequestException(
+      'New password required',
+    );
+  }
+
+  if (!confirmPassword) {
+    throw new BadRequestException(
+      'Confirm password required',
+    );
+  }
+
+  // =========================================
+  // CONFIRM PASSWORD
+  // =========================================
+
+  if (newPassword !== confirmPassword) {
+    throw new BadRequestException(
+      'Password confirmation does not match',
+    );
+  }
+
+  // =========================================
+  // STRONG PASSWORD VALIDATION
+  // =========================================
+
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#])[A-Za-z\d@$!%*?&.#]{8,}$/;
+
+  if (!passwordRegex.test(newPassword)) {
+    throw new BadRequestException(
+      'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character',
+    );
+  }
+
+  // =========================================
+  // VERIFY TOKEN
+  // =========================================
+
+  let payload: any;
+
+  try {
+    payload = this.jwtService.verify(token);
+  } catch {
+    throw new UnauthorizedException(
+      'Invalid or expired token',
+    );
+  }
+
+  // =========================================
+  // VALIDATE TYPE
+  // =========================================
+
+  if (payload.type !== 'RESET_PASSWORD') {
+    throw new UnauthorizedException(
+      'Invalid token type',
+    );
+  }
+
+  // =========================================
+  // HASH PASSWORD
+  // =========================================
+
+  const hashedPassword = await bcrypt.hash(
+    newPassword,
+    10,
+  );
+
+  // =========================================
+  // UPDATE USER PASSWORD
+  // =========================================
+
+  await this.prisma.user.update({
+    where: {
+      email: payload.email,
+    },
+    data: {
+      password: hashedPassword,
+    },
+  });
+
+  return {
+    success: true,
+    message: 'Password reset successfully',
+  };
+}
 }

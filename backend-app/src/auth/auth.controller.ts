@@ -1,10 +1,4 @@
-
-import {
-  Body,
-  Controller,
-  Patch,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Patch, Post } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 
@@ -13,18 +7,14 @@ import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   // =========================================
   // REGISTER
   // =========================================
 
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
-  ) {
+  async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
@@ -33,9 +23,7 @@ export class AuthController {
   // =========================================
 
   @Post('login')
-  async login(
-    @Body() dto: LoginDto,
-  ) {
+  async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
@@ -43,18 +31,13 @@ export class AuthController {
   // RESET PASSWORD
   // =========================================
 
-  @Patch('reset-password')
+  @Post('reset-password')
   async resetPassword(
-    @Body()
-    body: {
-      token: string;
-      newPassword: string;
-    },
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
+    @Body('confirmPassword')
+    confirmPassword: string,
   ) {
-
-    return this.authService.resetPassword(
-      body.token,
-      body.newPassword,
-    );
+    return this.authService.resetPassword(token, newPassword, confirmPassword);
   }
 }
