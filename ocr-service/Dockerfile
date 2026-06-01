@@ -2,7 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install build dependencies (termasuk swig untuk PyMuPDF)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -21,6 +20,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 ENV PYMUPDF_NO_TESSERACT=1
+ENV CFLAGS="-Wno-incompatible-pointer-types"
 
 RUN pip install --no-cache-dir -r requirements.txt
 
