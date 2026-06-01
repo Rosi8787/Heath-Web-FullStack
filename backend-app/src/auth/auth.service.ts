@@ -158,14 +158,14 @@ export class AuthService {
   // STRONG PASSWORD VALIDATION
   // =========================================
 
-  const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_])[A-Za-z\d@$!%*?&.#]{8,}$/;
+  // const passwordRegex =
+  //   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_])[A-Za-z\d@$!%*?&.#]{8,}$/;
 
-  if (!passwordRegex.test(newPassword)) {
-    throw new BadRequestException(
-      'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character',
-    );
-  }
+  // if (!passwordRegex.test(newPassword)) {
+  //   throw new BadRequestException(
+  //     'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character',
+  //   );
+  // }
 
   // =========================================
   // VERIFY TOKEN

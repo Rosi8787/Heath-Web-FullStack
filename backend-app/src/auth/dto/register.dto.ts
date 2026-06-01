@@ -6,6 +6,11 @@ import {
   MinLength,
 } from 'class-validator';
 
+import {
+  PASSWORD_REGEX,
+  PASSWORD_MESSAGE,
+} from '../../common/constants/password.constant';
+
 export class RegisterDto {
   @IsNotEmpty()
   @IsString()
@@ -20,12 +25,8 @@ export class RegisterDto {
   @MinLength(8, {
     message: 'Password must be at least 8 characters',
   })
-  @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_-])[A-Za-z\d@$!%*?&.#_-]+$/,
-    {
-      message:
-        'Password must contain uppercase, lowercase, number and special character',
-    },
-  )
+  @Matches(PASSWORD_REGEX, {
+    message: PASSWORD_MESSAGE,
+  })
   password!: string;
 }
