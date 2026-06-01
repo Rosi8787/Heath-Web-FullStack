@@ -3,6 +3,7 @@ import { Body, Controller, Post, Get } from '@nestjs/common';
 import { OtpService } from './otp.service';
 import { MailService } from 'src/mail/mail.service';
 import * as dns from 'dns';
+import * as net from 'net';
 
 @Controller('otp')
 export class OtpController {
@@ -20,6 +21,26 @@ export class OtpController {
   //     });
   //   });
   // }
+
+  @Get('smtp-test')
+  smtpTest() {
+    return new Promise((resolve) => {
+      const socket = net.createConnection(587, 'smtp-relay.brevo.com', () => {
+        resolve('CONNECTED');
+        socket.destroy();
+      });
+
+      socket.on('error', (e) => {
+        resolve(e.message);
+      });
+
+      socket.setTimeout(10000);
+
+      socket.on('timeout', () => {
+        resolve('TIMEOUT');
+      });
+    });
+  }
 
   @Get('dns-google')
   async dnsGoogle() {
