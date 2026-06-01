@@ -1,4 +1,5 @@
 import {
+  IsEmail,
   IsNotEmpty,
   IsString,
   Matches,
@@ -7,8 +8,12 @@ import {
 
 export class ResetPasswordDto {
   @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+
+  @IsNotEmpty()
   @IsString()
-  token!: string;
+  otp!: string;
 
   @IsNotEmpty()
   @IsString()
@@ -23,4 +28,8 @@ export class ResetPasswordDto {
     },
   )
   newPassword!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  confirmPassword!: string;
 }

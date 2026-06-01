@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset.dto';
 
 @Injectable()
 export class AuthService {
@@ -47,9 +48,7 @@ export class AuthService {
 
     return {
       success: true,
-
       message: 'Register success',
-
       data: {
         id: user.id,
         name: user.name,
@@ -117,33 +116,48 @@ export class AuthService {
   // RESET PASSWORD
   // =========================================
 
-  async resetPassword(token: string, newPassword: string) {
-    let payload: any;
-
-    try {
-      payload = this.jwtService.verify(token);
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
-
-    if (payload.type !== 'RESET_PASSWORD') {
-      throw new UnauthorizedException('Invalid token type');
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    await this.prisma.user.update({
-      where: {
-        email: payload.email,
-      },
-      data: {
-        password: hashedPassword,
-      },
-    });
-
-    return {
-      success: true,
-      message: 'Password reset successfully',
-    };
+  async resetPassword(dto: ResetPasswordDto) {
+  if (dto.newPassword !== dto.confirmPassword) {
+    throw new BadRequestException(
+      'Password confirmation does not match',
+    );
   }
+
+  const otpRecord = await this.prisma.otp.findFirst({
+    where: {
+      email: dto.email,
+      code: dto.otp,
+      verified: true,
+    },
+  });
+
+  if (!otpRecord) {
+    throw new UnauthorizedException('Invalid OTP');
+  }
+
+  const hashedPassword = await bcrypt.hash(
+    dto.newPassword,
+    10,
+  );
+
+  await this.prisma.user.update({
+    where: {
+      email: dto.email,
+    },
+    data: {
+      password: hashedPassword,
+    },
+  });
+
+  await this.prisma.otp.delete({
+    where: {
+      id: otpRecord.id,
+    },
+  });
+
+  return {
+    success: true,
+    message: 'Password reset successfully',
+  };
+}
 }

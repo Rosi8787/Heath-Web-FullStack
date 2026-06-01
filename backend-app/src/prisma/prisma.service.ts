@@ -10,6 +10,7 @@ export class PrismaService
   implements OnModuleInit
 {
   otpCode: any;
+  otp: any;
   async onModuleInit() {
     await this.$connect();
   }
