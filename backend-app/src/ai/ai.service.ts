@@ -31,76 +31,39 @@ export class AiService {
     'karbohidrat',
     'carb',
   ];
-  OCR_URL: any;
 
   // =========================
   // PARSE GRAMS
   // =========================
 
   private parseGrams(text: string): number | null {
-    if (!text) {
-      return null;
-    }
-
-    // =====================
-    // MATCH GRAM
-    // =====================
+    if (!text) return null;
 
     const gramMatch = text.match(
       /(?<![a-z])(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i,
     );
-
     if (gramMatch) {
       const value = parseFloat(gramMatch[1].replace(',', '.'));
-
-      if (!isNaN(value)) {
-        return value;
-      }
+      if (!isNaN(value)) return value;
     }
 
-    // =====================
-    // MATCH MG
-    // =====================
-
     const mgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*mg(?![a-z])/i);
-
     if (mgMatch) {
       const value = parseFloat(mgMatch[1].replace(',', '.'));
-
-      if (!isNaN(value)) {
-        // convert mg -> g
-        return Math.round((value / 1000) * 100) / 100;
-      }
+      if (!isNaN(value)) return Math.round((value / 1000) * 100) / 100;
     }
 
     return null;
   }
 
-  // =========================
-  // MATCH LABEL
-  // =========================
-
   private matchesLabel(text: string, labels: string[]): boolean {
-    if (!text) {
-      return false;
-    }
-
-    const lower = text.toLowerCase().trim();
-
-    return labels.some((label) => lower.includes(label));
+    if (!text) return false;
+    return labels.some((label) => text.toLowerCase().trim().includes(label));
   }
 
-  // =========================
-  // IS CARB LINE
-  // =========================
-
   private isCarbLine(text: string): boolean {
-    if (!text) {
-      return false;
-    }
-
+    if (!text) return false;
     const lower = text.toLowerCase();
-
     return (
       lower.includes('carbohydrate') ||
       lower.includes('karbohidrat') ||
@@ -108,12 +71,42 @@ export class AiService {
     );
   }
 
-  // =========================
-  // VALID VALUE
-  // =========================
-
   private isNutritionValue(value: number): boolean {
     return value >= 0 && value <= 100;
+  }
+
+  // =========================
+  // NORMALIZE OCR DATA
+  // Handles both PaddleOCR v2 (nested) and v3 (flat) formats
+  // =========================
+
+  private normalizeOcrData(
+    rawOcr: any,
+  ): Array<{ text: string; score: number }> {
+    const result: Array<{ text: string; score: number }> = [];
+
+    if (!rawOcr || !Array.isArray(rawOcr)) return result;
+
+    for (const item of rawOcr) {
+      // ✅ Format baru PaddleOCR v3 (flat): { text: string, score: number }
+      if (typeof item === 'object' && item !== null && 'text' in item) {
+        if (item.text) {
+          result.push({ text: String(item.text), score: item.score || 0 });
+        }
+      }
+      // Format lama PaddleOCR v2 (nested block)
+      else if (Array.isArray(item)) {
+        for (const subItem of item) {
+          try {
+            const text = subItem?.[1]?.[0] || '';
+            const score = subItem?.[1]?.[1] || 0;
+            if (text) result.push({ text: String(text), score });
+          } catch (_) {}
+        }
+      }
+    }
+
+    return result;
   }
 
   // =========================
@@ -121,16 +114,9 @@ export class AiService {
   // =========================
 
   private extractSugarGrams(
-    ocrData: Array<{
-      text: string;
-      score: number;
-    }>,
+    ocrData: Array<{ text: string; score: number }>,
   ): number {
-    // =====================
-    // PASS 1
-    // DIRECT SUGAR
-    // =====================
-
+    // PASS 1: direct sugar label
     for (let i = 0; i < ocrData.length; i++) {
       const currentText = ocrData[i]?.text || '';
 
@@ -140,55 +126,31 @@ export class AiService {
       ) {
         console.log('SUGAR LABEL FOUND:', currentText);
 
-        // =====================
-        // INLINE VALUE
-        // =====================
-
         const inlineGrams = this.parseGrams(currentText);
-
         if (inlineGrams !== null && this.isNutritionValue(inlineGrams)) {
           console.log('SUGAR INLINE:', inlineGrams);
-
           return inlineGrams;
         }
 
-        // =====================
-        // NEXT LINES
-        // =====================
-
         const candidates: number[] = [];
-
         for (let offset = 1; offset <= 5; offset++) {
           const next = ocrData[i + offset];
-
-          if (!next) {
-            break;
-          }
+          if (!next) break;
 
           const value = this.parseGrams(next.text);
-
           if (value !== null && this.isNutritionValue(value)) {
             candidates.push(value);
-
             console.log(`SUGAR NEXT[${offset}] =`, value);
           }
         }
 
         if (candidates.length > 0) {
-          // sugar biasanya 1g - 40g
-          const estimated =
-            candidates.find((v) => v >= 1 && v <= 40) || candidates[0];
-
-          return estimated;
+          return candidates.find((v) => v >= 1 && v <= 40) || candidates[0];
         }
       }
     }
 
-    // =====================
-    // PASS 2
-    // FALLBACK CARB
-    // =====================
-
+    // PASS 2: fallback carb
     for (let i = 0; i < ocrData.length; i++) {
       const currentText = ocrData[i]?.text || '';
 
@@ -196,43 +158,26 @@ export class AiService {
         console.log('CARBOHYDRATE FOUND:', currentText);
 
         const candidates: number[] = [];
-
-        // =====================
-        // INLINE
-        // =====================
-
         const inlineGrams = this.parseGrams(currentText);
-
         if (inlineGrams !== null && this.isNutritionValue(inlineGrams)) {
           candidates.push(inlineGrams);
         }
 
-        // =====================
-        // NEARBY VALUES
-        // =====================
-
         for (let offset = 1; offset <= 5; offset++) {
           const next = ocrData[i + offset];
-
-          if (!next) {
-            break;
-          }
+          if (!next) break;
 
           const value = this.parseGrams(next.text);
-
           if (value !== null && this.isNutritionValue(value)) {
             candidates.push(value);
           }
         }
 
         console.log('CARB CANDIDATES:', candidates);
-
         if (candidates.length > 0) {
           const estimated =
             candidates.find((v) => v >= 1 && v <= 40) || candidates[0];
-
           console.log('ESTIMATED SUGAR:', estimated);
-
           return estimated;
         }
       }
@@ -241,62 +186,25 @@ export class AiService {
     return 0;
   }
 
-  // =========================
-  // ROUND SUGAR
-  // =========================
-
   private roundSugar(value: number): number {
     return Math.round(value * 10) / 10;
   }
 
-  // =========================
-  // PRODUCT NAME
-  // =========================
-
   private extractProductName(text: string): string {
     const SKIP_KEYWORDS = [
-      'nutrition',
-      'nutritional',
-      'informasi',
-      'nilai gizi',
-      'carbohydrate',
-      'karbohidrat',
-      'carb',
-      'protein',
-      'sugar',
-      'sugars',
-      'gula',
-      'fat',
-      'lemak',
-      'sodium',
-      'natrium',
-      'calories',
-      'kalori',
-      'energi',
-      'energy',
-      'serving',
-      'porsi',
-      'sajian',
-      'daily',
-      'value',
-      'amount',
-      'total',
-      'vitamin',
-      'mineral',
-      'zinc',
-      'calcium',
-      'iron',
-      'percent',
-      'persen',
-      '%akg',
-      '%dv',
+      'nutrition', 'nutritional', 'informasi', 'nilai gizi',
+      'carbohydrate', 'karbohidrat', 'carb', 'protein',
+      'sugar', 'sugars', 'gula', 'fat', 'lemak',
+      'sodium', 'natrium', 'calories', 'kalori',
+      'energi', 'energy', 'serving', 'porsi', 'sajian',
+      'daily', 'value', 'amount', 'total', 'vitamin',
+      'mineral', 'zinc', 'calcium', 'iron', 'percent',
+      'persen', '%akg', '%dv',
     ];
 
     const lines = text.split('\n');
-
     for (const line of lines) {
       const trimmed = line.trim();
-
       const lower = trimmed.toLowerCase();
 
       if (
@@ -312,53 +220,28 @@ export class AiService {
     return 'Unknown Product';
   }
 
-  // =========================
-  // STATUS
-  // =========================
-
   private getSugarStatus(sugar: number): string {
-    if (sugar <= 5) {
-      return 'Low Sugar';
-    }
-
-    if (sugar <= 15) {
-      return 'Medium Sugar';
-    }
-
+    if (sugar <= 5) return 'Low Sugar';
+    if (sugar <= 15) return 'Medium Sugar';
     return 'High Sugar';
   }
 
-  // =========================
-  // GRADE
-  // =========================
-
-  private getSugarGrade(sugar: number): {
-    grade: string;
-    description: string;
-  } {
-    if (sugar < 1) {
+  private getSugarGrade(sugar: number): { grade: string; description: string } {
+    if (sugar < 1)
       return {
         grade: 'A',
-        description:
-          'Minuman dengan kandungan gula sangat rendah (<1g per sajian).',
+        description: 'Minuman dengan kandungan gula sangat rendah (<1g per sajian).',
       };
-    }
-
-    if (sugar < 5) {
+    if (sugar < 5)
       return {
         grade: 'B',
         description: 'Minuman rendah gula dan masih direkomendasikan.',
       };
-    }
-
-    if (sugar <= 10) {
+    if (sugar <= 10)
       return {
         grade: 'C',
-        description:
-          'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.',
+        description: 'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.',
       };
-    }
-
     return {
       grade: 'D',
       description: 'Minuman dengan kandungan gula sangat tinggi.',
@@ -370,176 +253,57 @@ export class AiService {
   // =========================
 
   async analyzeNutritionImage(file: Express.Multer.File) {
-
     console.log('🔥 ANALYZE NUTRITION DIPANGGIL');
+
     try {
-      // =====================
-      // FORM DATA
-      // =====================
-
       const formData = new FormData();
-
-      formData.append('file', file.buffer, file.originalname);
-
-      // =====================
-      // OCR REQUEST
-      // =====================
-
-      // const response =
-      //   await axios.post(
-      //     'http://127.0.0.1:8000/ocr',
-      //     formData,
-      //     {
-      //       headers:
-      //         formData.getHeaders(),
-      //       maxBodyLength:
-      //         Infinity,
-      //     },
-      //   );
-
-      console.log('OCR_URL=', this.OCR_URL);
-      console.log(process.env.OCR_URL);
-
-      console.log('====================');
-      console.log('AKU MASUK OCR REQUEST');
-      console.log('====================');
-
-      console.log('OCR_URL RAW =', process.env.OCR_URL);
+      formData.append('file', file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
 
       const OCR_URL = process.env.OCR_URL?.replace(/\/+$/, '');
-
-      console.log('OCR_URL FINAL =', OCR_URL);
-      console.log('REQUEST URL =', `${OCR_URL}/ocr`);
-
-      console.log('OCR_URL RAW =', process.env.OCR_URL);
-      console.log('OCR_URL FINAL =', OCR_URL);
-      console.log('REQUEST URL =', `${OCR_URL}/ocr`);
+      console.log('OCR_URL =', OCR_URL);
 
       const response = await axios.post(`${OCR_URL}/ocr`, formData, {
         headers: formData.getHeaders(),
         maxBodyLength: Infinity,
+        timeout: 60000,
       });
-
-      // const response = await axios.post(`${this.OCR_URL}ocr`, formData, {
-      //   headers: formData.getHeaders(),
-      //   maxBodyLength: Infinity,
-      // });
-
-      // =====================
-      // OCR TEXT
-      // =====================
 
       const text: string = response.data.text || '';
-
-      // =====================
-      // RAW OCR
-      // =====================
-
       const rawOcr = response.data.ocr_data || [];
 
-      // =====================
-      // NORMALIZE OCR
-      // =====================
-
-      const ocrData: Array<{
-        text: string;
-        score: number;
-      }> = [];
-
-      for (const block of rawOcr) {
-        for (const item of block) {
-          try {
-            const text = item?.[1]?.[0] || '';
-
-            const score = item?.[1]?.[1] || 0;
-
-            if (text) {
-              ocrData.push({
-                text,
-                score,
-              });
-            }
-          } catch (err) {
-            console.log('OCR PARSE ERROR:', err);
-          }
-        }
-      }
-
-      // =====================
-      // DEBUG
-      // =====================
+      // ✅ Normalize ke format standar { text, score }
+      const ocrData = this.normalizeOcrData(rawOcr);
 
       console.log('=========== OCR TEXT ===========');
-
       console.log(text);
-
       console.log('=========== OCR DATA ===========');
-
-      ocrData.forEach((item, idx) => {
-        console.log(`[${idx}]`, item.text);
-      });
-
-      // =====================
-      // EXTRACT SUGAR
-      // =====================
+      ocrData.forEach((item, idx) => console.log(`[${idx}]`, item.text));
 
       let sugar = this.extractSugarGrams(ocrData);
-
       sugar = this.roundSugar(sugar);
 
-      // =====================
-      // SANITY CHECK
-      // =====================
-
-      if (isNaN(sugar) || sugar < 0 || sugar > 200) {
-        sugar = 0;
-      }
-
-      // =====================
-      // PRODUCT NAME
-      // =====================
+      if (isNaN(sugar) || sugar < 0 || sugar > 200) sugar = 0;
 
       const productName = this.extractProductName(text);
-
-      // =====================
-      // STATUS
-      // =====================
-
       const sugarStatus = this.getSugarStatus(sugar);
-
-      // =====================
-      // GRADE
-      // =====================
-
       const gradeData = this.getSugarGrade(sugar);
-
-      // =====================
-      // RESPONSE
-      // =====================
 
       return {
         success: true,
-
         extractedText: text,
-
         productName,
-
         sugar,
-
         sugarUnit: 'g',
-
         sugarStatus,
-
         sugarGrade: gradeData.grade,
-
         gradeDescription: gradeData.description,
-
         aiSummary: `Produk ini mengandung ${sugar}g gula dan masuk kategori grade ${gradeData.grade}. ${gradeData.description}`,
       };
     } catch (error: any) {
-      console.log('OCR ANALYZE ERROR:');
-
-      console.log({
+      console.log('OCR ANALYZE ERROR:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
@@ -547,9 +311,7 @@ export class AiService {
 
       return {
         success: false,
-
         message: 'Failed analyze nutrition image',
-
         error: error?.message || 'Unknown error',
       };
     }
