@@ -95,7 +95,6 @@ export class NutritionService {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!matchesSugar(line)) continue;
-      // Jangan terkecoh baris karbohidrat yang menyebut "sugars" sebagai bagian dari carb
       if (matchesCarb(line)) continue;
 
       console.log('🍬 SUGAR LINE:', line);
@@ -236,7 +235,6 @@ export class NutritionService {
       );
     }
 
-    // Cek jika OCR service mengembalikan error di dalam body
     if (ocrResponse.data.error) {
       return {
         success: false,
@@ -251,75 +249,70 @@ export class NutritionService {
     console.log(extractedText);
 
     // ======================================================
-    // EXTRACT SUGAR (langsung dari teks)
+    // PROCESSING (WRAPPED IN TRY-CATCH)
     // ======================================================
-    let sugar = this.extractSugarFromText(extractedText);
-    sugar = Math.round(sugar * 10) / 10;
+    try {
+      let sugar = this.extractSugarFromText(extractedText);
+      sugar = Math.round(sugar * 10) / 10;
 
-    if (isNaN(sugar) || sugar < 0 || sugar > 200) {
-      sugar = 0;
-    }
+      if (isNaN(sugar) || sugar < 0 || sugar > 200) {
+        sugar = 0;
+      }
 
-    const sugarDetected = sugar > 0;
+      const sugarDetected = sugar > 0;
 
-    // ======================================================
-    // IF SUGAR NOT FOUND
-    // ======================================================
+      if (!sugarDetected) {
+        return {
+          success: false,
+          needsManualInput: true,
+          message: 'Sugar tidak terdeteksi',
+          options: ['scan_again', 'manual_input'],
+          extractedText,
+        };
+      }
 
-    if (!sugarDetected) {
+      const sugarStatus = getSugarStatus(sugar);
+      const gradeData = getSugarGrade(sugar);
+
+      console.log({ sugar, sugarStatus, sugarGrade: gradeData.grade });
+
+      const now = new Date();
+      const hour = now.getHours();
+      const dayKey = now.toLocaleDateString('en-CA');
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const yearKey = `${now.getFullYear()}`;
+      const weekKey = `${now.getFullYear()}-W${Math.ceil(now.getDate() / 7)}`;
+      const consumptionPeriod = getConsumptionPeriod(hour);
+
+      const nutrition = await this.prisma.nutritionScan.create({
+        data: {
+          userId,
+          productName,
+          sugar,
+          sugarStatus,
+          sugarGrade: gradeData.grade,
+          consumedAt: now,
+          consumptionPeriod,
+          dayKey,
+          weekKey,
+          monthKey,
+          yearKey,
+          aiSummary: `Produk ini mengandung ${sugar}g gula dan masuk kategori grade ${gradeData.grade}. ${gradeData.description}`,
+        },
+      });
+
       return {
-        success: false,
-        needsManualInput: true,
-        message: 'Sugar tidak terdeteksi',
-        options: ['scan_again', 'manual_input'],
+        success: true,
+        message: 'Nutrition scanned successfully',
+        data: nutrition,
         extractedText,
       };
+    } catch (processingError: any) {
+      console.error('❌ PROCESSING ERROR:', processingError);
+      throw new BadRequestException(
+        `Gagal memproses hasil scan: ${processingError.message || 'Unknown error'}`,
+      );
     }
-
-    // ======================================================
-    // SUGAR STATUS & GRADE
-    // ======================================================
-
-    const sugarStatus = getSugarStatus(sugar);
-    const gradeData = getSugarGrade(sugar);
-
-    // ======================================================
-    // SAVE TO DATABASE
-    // ======================================================
-
-    console.log({ sugar, sugarStatus, sugarGrade: gradeData.grade });
-
-    const now = new Date();
-    const hour = now.getHours();
-    const dayKey = now.toLocaleDateString('en-CA');
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const yearKey = `${now.getFullYear()}`;
-    const weekKey = `${now.getFullYear()}-W${Math.ceil(now.getDate() / 7)}`;
-    const consumptionPeriod = getConsumptionPeriod(hour);
-
-    const nutrition = await this.prisma.nutritionScan.create({
-      data: {
-        userId,
-        productName,
-        sugar,
-        sugarStatus,
-        sugarGrade: gradeData.grade,
-        consumedAt: now,
-        consumptionPeriod,
-        dayKey,
-        weekKey,
-        monthKey,
-        yearKey,
-        aiSummary: `Produk ini mengandung ${sugar}g gula dan masuk kategori grade ${gradeData.grade}. ${gradeData.description}`,
-      },
-    });
-
-    return {
-      success: true,
-      message: 'Nutrition scanned successfully',
-      data: nutrition,
-      extractedText,
-    };
   }
 
   // ======================================================
