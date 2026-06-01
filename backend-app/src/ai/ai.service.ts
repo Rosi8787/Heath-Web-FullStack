@@ -308,7 +308,7 @@ export class AiService {
         status: error.response?.status,
         data: error.response?.data,
       });
-
+      
       return {
         success: false,
         message: 'Failed analyze nutrition image',

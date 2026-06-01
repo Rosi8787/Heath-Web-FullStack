@@ -22,7 +22,7 @@ export class SummarizeService {
     });
 
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException('Fitur ini hanya untuk pengguna premium. Silakan upgrade ke premium.');
     }
 
     if (!user.age || !user.height || !user.weight || !user.gender) {

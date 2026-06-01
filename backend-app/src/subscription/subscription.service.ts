@@ -1,108 +1,64 @@
-import {
-  Injectable,
-  BadRequestException,
-} from '@nestjs/common';
-
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class SubscriptionService {
-
-  constructor(
-    private prisma: PrismaService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   // ======================================================
   // ACTIVATE PREMIUM
   // ======================================================
-
-  async activatePremium(
-    userId: string,
-  ) {
-
-    const expiresAt =
-      new Date();
-
-    expiresAt.setDate(
-      expiresAt.getDate() + 30,
-    );
-
-    const existing =
-      await this.prisma.subscription.findUnique({
-        where: {
-          userId,
-        },
-      });
-
-    // ============================================
-    // UPDATE EXISTING
-    // ============================================
-
-    if (existing) {
-
-      const subscription =
-        await this.prisma.subscription.update({
-          where: {
-            userId,
-          },
-
-          data: {
-            status: 'ACTIVE',
-            expiresAt,
-          },
-        });
-
-      await this.prisma.user.update({
-        where: {
-          id: userId,
-        },
-
-        data: {
-          role: 'PREMIUM',
-        },
-      });
-
-      return {
-        success: true,
-
-        message:
-          'Premium activated successfully',
-
-        data: subscription,
-      };
+  async activatePremium(userId: string, plan: 'monthly' | 'yearly') {
+    // Validasi plan
+    if (!plan || !['monthly', 'yearly'].includes(plan)) {
+      throw new BadRequestException('Plan must be "monthly" or "yearly"');
     }
 
-    // ============================================
-    // CREATE NEW
-    // ============================================
+    const expiresAt = new Date();
+    const daysToAdd = plan === 'monthly' ? 30 : 365;
+    expiresAt.setDate(expiresAt.getDate() + daysToAdd);
 
-    const subscription =
-      await this.prisma.subscription.create({
+    const existing = await this.prisma.subscription.findUnique({
+      where: { userId },
+    });
+
+    if (existing) {
+      const subscription = await this.prisma.subscription.update({
+        where: { userId },
         data: {
-          userId,
-
           status: 'ACTIVE',
-
           expiresAt,
         },
       });
 
-    await this.prisma.user.update({
-      where: {
-        id: userId,
-      },
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { role: 'PREMIUM' },
+      });
 
+      return {
+        success: true,
+        message: `Premium ${plan} activated successfully`,
+        data: subscription,
+      };
+    }
+
+    const subscription = await this.prisma.subscription.create({
       data: {
-        role: 'PREMIUM',
+        userId,
+        status: 'ACTIVE',
+        expiresAt,
       },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: 'PREMIUM' },
     });
 
     return {
       success: true,
-
-      message:
-        'Premium activated successfully',
-
+      message: `Premium ${plan} activated successfully`,
       data: subscription,
     };
   }
@@ -110,58 +66,57 @@ export class SubscriptionService {
   // ======================================================
   // GET STATUS
   // ======================================================
-
   async getStatus(userId: string) {
-
-    const subscription =
-      await this.prisma.subscription.findUnique({
-        where: {
-          userId,
-        },
-      });
-
-    // ============================================
-    // NO SUBSCRIPTION
-    // ============================================
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { userId },
+    });
 
     if (!subscription) {
-
-      return {
-        premium: false,
-      };
+      return { premium: false };
     }
 
-    // ============================================
-    // EXPIRED
-    // ============================================
-
-    if (
-      subscription.expiresAt <
-      new Date()
-    ) {
-
+    if (subscription.expiresAt < new Date()) {
+      // Jika sudah kedaluwarsa, ubah role menjadi USER
       await this.prisma.user.update({
-        where: {
-          id: userId,
-        },
-
-        data: {
-          role: 'USER',
-        },
+        where: { id: userId },
+        data: { role: 'USER' },
       });
-
-      return {
-        premium: false,
-
-        expired: true,
-      };
+      return { premium: false, expired: true };
     }
 
     return {
       premium: true,
+      expiresAt: subscription.expiresAt,
+    };
+  }
 
-      expiresAt:
-        subscription.expiresAt,
+  // ======================================================
+  // CANCEL PREMIUM (BARU)
+  // ======================================================
+  async cancelPremium(userId: string) {
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { userId },
+    });
+
+    if (!subscription || subscription.status !== 'ACTIVE') {
+      throw new BadRequestException('No active subscription to cancel');
+    }
+
+    // Ubah status subscription menjadi CANCELED
+    await this.prisma.subscription.update({
+      where: { userId },
+      data: { status: 'CANCELED' },
+    });
+
+    // Ubah role user menjadi USER
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: 'USER' },
+    });
+
+    return {
+      success: true,
+      message: 'Premium subscription has been canceled. You are now a free user.',
     };
   }
 }
