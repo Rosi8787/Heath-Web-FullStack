@@ -123,16 +123,21 @@ export class AuthService {
     );
   }
 
-  const otpRecord = await this.prisma.otp.findFirst({
-    where: {
-      email: dto.email,
-      code: dto.otp,
-      verified: true,
-    },
-  });
+  const otpRecord =
+    await this.prisma.oTPVerification.findFirst({
+      where: {
+        email: dto.email,
+        otp: dto.otp,
+        verified: true,
+      },
+    });
 
   if (!otpRecord) {
     throw new UnauthorizedException('Invalid OTP');
+  }
+
+  if (otpRecord.expiresAt < new Date()) {
+    throw new UnauthorizedException('OTP expired');
   }
 
   const hashedPassword = await bcrypt.hash(
@@ -149,7 +154,7 @@ export class AuthService {
     },
   });
 
-  await this.prisma.otp.delete({
+  await this.prisma.oTPVerification.delete({
     where: {
       id: otpRecord.id,
     },
