@@ -16,41 +16,21 @@ export class SummarizeService {
 
   constructor(private prisma: PrismaService) {}
 
-  // ======================================================
-  // AI SUMMARY
-  // ======================================================
-
   async generateSummary(userId: string) {
-    // ======================================================
-    // USER
-    // ======================================================
-
     const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
+      where: { id: userId },
     });
 
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    // ======================================================
-    // VALIDASI PROFILE
-    // ======================================================
-
     if (!user.age || !user.height || !user.weight || !user.gender) {
       throw new BadRequestException('Please complete your profile first');
     }
 
-    // ======================================================
-    // PREMIUM ONLY
-    // ======================================================
-
     const subscription = await this.prisma.subscription.findUnique({
-      where: {
-        userId,
-      },
+      where: { userId },
     });
 
     const isPremium =
@@ -62,15 +42,7 @@ export class SummarizeService {
       throw new ForbiddenException('Premium feature');
     }
 
-    // ======================================================
-    // TODAY
-    // ======================================================
-
     const today = new Date().toISOString().split('T')[0];
-
-    // ======================================================
-    // GET TODAY SCANS
-    // ======================================================
 
     const scans = await this.prisma.nutritionScan.findMany({
       where: {
@@ -83,28 +55,16 @@ export class SummarizeService {
       throw new BadRequestException('No nutrition data today');
     }
 
-    // ======================================================
-    // FORMAT SCAN
-    // ======================================================
-
     const formattedScans = scans.map((item) => ({
       productName: item.productName,
       sugar: item.sugar,
       sugarStatus: item.sugarStatus,
     }));
 
-    // ======================================================
-    // TOTAL SUGAR
-    // ======================================================
-
     const totalSugar = scans.reduce(
       (sum, item) => sum + Number(item.sugar || 0),
       0,
     );
-
-    // ======================================================
-    // AI PROMPT
-    // ======================================================
 
     const prompt = `
 You are a professional nutrition AI assistant.
@@ -137,12 +97,8 @@ Rules:
 - Give realistic advice
 `;
 
-    // ======================================================
-    // GROQ REQUEST
-    // ======================================================
-
     const response = await this.groq.chat.completions.create({
-      model: 'llama3-8b-8192', // ← sudah diganti
+      model: 'llama-3.3-70b-versatile', // ← model aktif
       messages: [
         {
           role: 'user',
@@ -152,10 +108,6 @@ Rules:
     });
 
     const summary = response.choices[0]?.message?.content;
-
-    // ======================================================
-    // RETURN
-    // ======================================================
 
     return {
       success: true,
