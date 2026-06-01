@@ -118,26 +118,6 @@ export class AuthService {
   // =========================================
 
   async resetPassword(token: string, newPassword: string) {
-    // =========================================
-    // VALIDATION
-    // =========================================
-
-    if (!token) {
-      throw new BadRequestException('Reset token required');
-    }
-
-    if (!newPassword) {
-      throw new BadRequestException('New password required');
-    }
-
-    if (newPassword.length < 6) {
-      throw new BadRequestException('Password minimum 6 characters');
-    }
-
-    // =========================================
-    // VERIFY TOKEN
-    // =========================================
-
     let payload: any;
 
     try {
@@ -146,29 +126,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    // =========================================
-    // VALIDATE TYPE
-    // =========================================
-
     if (payload.type !== 'RESET_PASSWORD') {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    // =========================================
-    // HASH PASSWORD
-    // =========================================
-
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // =========================================
-    // UPDATE USER PASSWORD
-    // =========================================
 
     await this.prisma.user.update({
       where: {
         email: payload.email,
       },
-
       data: {
         password: hashedPassword,
       },
@@ -176,7 +143,6 @@ export class AuthService {
 
     return {
       success: true,
-
       message: 'Password reset successfully',
     };
   }
