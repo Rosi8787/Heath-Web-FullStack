@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     make \
+    swig \               # <-- TAMBAHKAN INI
     pkg-config \
     libjpeg-dev \
     zlib1g-dev \
