@@ -12,7 +12,6 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { ResetPasswordDto } from './dto/reset.dto';
 
 @Injectable()
 export class AuthService {
@@ -26,36 +25,41 @@ export class AuthService {
   // =========================================
 
   async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: {
-        email: dto.email,
-      },
-    });
+  const existingUser = await this.prisma.user.findUnique({
+    where: {
+      email: dto.email,
+    },
+  });
 
-    if (existingUser) {
-      throw new BadRequestException('Email already used');
-    }
-
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hashedPassword,
-        name: dto.name,
-      },
-    });
-
-    return {
-      success: true,
-      message: 'Register success',
-      data: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      },
-    };
+  if (existingUser) {
+    throw new BadRequestException(
+      'Email already used',
+    );
   }
+
+  const hashedPassword = await bcrypt.hash(
+    dto.password,
+    10,
+  );
+
+  const user = await this.prisma.user.create({
+    data: {
+      email: dto.email,
+      password: hashedPassword,
+      name: dto.name,
+    },
+  });
+
+  return {
+    success: true,
+    message: 'Register success',
+    data: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+  };
+}
 
   // =========================================
   // LOGIN
@@ -116,53 +120,33 @@ export class AuthService {
   // RESET PASSWORD
   // =========================================
 
-  async resetPassword(dto: ResetPasswordDto) {
-  if (dto.newPassword !== dto.confirmPassword) {
-    throw new BadRequestException(
-      'Password confirmation does not match',
-    );
-  }
+  async resetPassword(token: string, newPassword: string) {
+    let payload: any;
 
-  const otpRecord =
-    await this.prisma.oTPVerification.findFirst({
+    try {
+      payload = this.jwtService.verify(token);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    if (payload.type !== 'RESET_PASSWORD') {
+      throw new UnauthorizedException('Invalid token type');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
       where: {
-        email: dto.email,
-        otp: dto.otp,
-        verified: true,
+        email: payload.email,
+      },
+      data: {
+        password: hashedPassword,
       },
     });
 
-  if (!otpRecord) {
-    throw new UnauthorizedException('Invalid OTP');
+    return {
+      success: true,
+      message: 'Password reset successfully',
+    };
   }
-
-  if (otpRecord.expiresAt < new Date()) {
-    throw new UnauthorizedException('OTP expired');
-  }
-
-  const hashedPassword = await bcrypt.hash(
-    dto.newPassword,
-    10,
-  );
-
-  await this.prisma.user.update({
-    where: {
-      email: dto.email,
-    },
-    data: {
-      password: hashedPassword,
-    },
-  });
-
-  await this.prisma.oTPVerification.delete({
-    where: {
-      id: otpRecord.id,
-    },
-  });
-
-  return {
-    success: true,
-    message: 'Password reset successfully',
-  };
-}
 }
