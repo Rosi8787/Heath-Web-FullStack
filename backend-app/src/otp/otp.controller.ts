@@ -21,21 +21,35 @@ export class OtpController {
   //   });
   // }
 
-
-
-@Get('dns-test')
-async dnsTest() {
-  return new Promise((resolve, reject) => {
-    dns.lookup(
-      'smtp-relay.brevo.com',
-      { all: true },
-      (err, addresses) => {
+  @Get('dns-google')
+  async dnsGoogle() {
+    return new Promise((resolve, reject) => {
+      dns.lookup('google.com', { all: true }, (err, addresses) => {
         if (err) reject(err);
         else resolve(addresses);
-      },
-    );
-  });
-}
+      });
+    });
+  }
+
+  @Get('dns-brevo')
+  async dnsBrevo() {
+    return new Promise((resolve, reject) => {
+      dns.lookup('smtp-relay.brevo.com', { all: true }, (err, addresses) => {
+        if (err) reject(err);
+        else resolve(addresses);
+      });
+    });
+  }
+
+  @Get('dns-test')
+  async dnsTest() {
+    return new Promise((resolve, reject) => {
+      dns.lookup('smtp-relay.brevo.com', { all: true }, (err, addresses) => {
+        if (err) reject(err);
+        else resolve(addresses);
+      });
+    });
+  }
 
   // @Get('mail-test')
   // async mailTest() {
