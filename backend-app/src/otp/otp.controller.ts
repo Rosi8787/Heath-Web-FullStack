@@ -11,15 +11,31 @@ export class OtpController {
     private mailService: MailService,
   ) {}
 
-  @Get('dns-test')
-  async dnsTest() {
-    return new Promise((resolve, reject) => {
-      dns.resolve4('smtp-relay.brevo.com', (err, addresses) => {
+  // @Get('dns-test')
+  // async dnsTest() {
+  //   return new Promise((resolve, reject) => {
+  //     dns.resolve4('smtp-relay.brevo.com', (err, addresses) => {
+  //       if (err) reject(err);
+  //       else resolve(addresses);
+  //     });
+  //   });
+  // }
+
+
+
+@Get('dns-test')
+async dnsTest() {
+  return new Promise((resolve, reject) => {
+    dns.lookup(
+      'smtp-relay.brevo.com',
+      { all: true },
+      (err, addresses) => {
         if (err) reject(err);
         else resolve(addresses);
-      });
-    });
-  }
+      },
+    );
+  });
+}
 
   // @Get('mail-test')
   // async mailTest() {
