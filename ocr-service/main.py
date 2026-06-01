@@ -11,13 +11,12 @@ TEMP_FOLDER = "temp"
 os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 print("INIT OCR...")
-# Gunakan inisialisasi default – tanpa argumen yang tidak didukung
 ocr = PaddleOCR(lang='en')
 print("OCR READY")
 
 
-def preprocess_image(img):
-    # Resize hanya jika gambar terlalu lebar (tidak memperbesar)
+def preprocess_light(img):
+    """Resize turun jika terlalu lebar, grayscale, blur & sharpen ringan."""
     h, w = img.shape[:2]
     MAX_WIDTH = 1200
     if w > MAX_WIDTH:
@@ -27,7 +26,8 @@ def preprocess_image(img):
         img = cv2.resize(img, (new_w, new_h))
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
+    # Blur tipis untuk kurangi noise
+    gray = cv2.medianBlur(gray, 3)
     # Sharpening ringan
     sharpen_kernel = np.array([
         [0, -1, 0],
@@ -35,13 +35,6 @@ def preprocess_image(img):
         [0, -1, 0]
     ])
     gray = cv2.filter2D(gray, -1, sharpen_kernel)
-    gray = cv2.medianBlur(gray, 3)
-
-    # Thresholding untuk memperjelas teks
-    gray = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 31, 10
-    )
     return gray
 
 
@@ -54,7 +47,7 @@ def root():
 async def scan_ocr(file: UploadFile = File(...)):
     print("OCR REQUEST RECEIVED")
 
-    # Simpan file sementara
+    # Simpan file asli
     temp_path = f"{TEMP_FOLDER}/{file.filename}"
     with open(temp_path, "wb") as buffer:
         buffer.write(await file.read())
@@ -64,19 +57,18 @@ async def scan_ocr(file: UploadFile = File(...)):
         os.remove(temp_path)
         return {"text": "", "ocr_data": [], "error": "cannot read image"}
 
-    # Preprocessing tanpa resize-up
-    processed = preprocess_image(img)
-    processed_path = f"{TEMP_FOLDER}/processed_{file.filename}"
-    cv2.imwrite(processed_path, processed)
-
-    # OCR
-    try:
+    # ====== 1. Coba OCR gambar asli ======
+    result = ocr.ocr(temp_path)
+    if result is None or not result[0]:
+        # ====== 2. Jika gagal, coba preprocessing ringan ======
+        print("OCR on original image failed, trying light preprocessing...")
+        processed = preprocess_light(img)
+        processed_path = f"{TEMP_FOLDER}/processed_{file.filename}"
+        cv2.imwrite(processed_path, processed)
         result = ocr.ocr(processed_path)
-    except Exception as e:
-        for p in [temp_path, processed_path]:
-            if os.path.exists(p):
-                os.remove(p)
-        return {"error": str(e)}
+        # Setelah selesai, processed_path akan dihapus nanti
+    else:
+        processed_path = None  # Tidak ada file processed
 
     # Parse hasil
     extracted_text = ""
@@ -91,15 +83,19 @@ async def scan_ocr(file: UploadFile = File(...)):
                 extracted_text += text + "\n"
                 ocr_data.append({"text": text, "score": score})
     except Exception as e:
+        # Bersihkan file sebelum return error
+        for p in [temp_path, processed_path]:
+            if p and os.path.exists(p):
+                os.remove(p)
         return {"error": f"parse error: {e}"}
 
-    # Bersihkan temporary files
+    # Bersihkan file temporary
     for p in [temp_path, processed_path]:
-        if os.path.exists(p):
+        if p and os.path.exists(p):
             os.remove(p)
 
     return {
-        "text": extracted_text,
+        "text": extracted_text.strip(),
         "ocr_data": ocr_data
     }
 
