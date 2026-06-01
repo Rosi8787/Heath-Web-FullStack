@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import axios from 'axios';
 import FormData from 'form-data';
 
 // ======================================================
-// HELPER FUNCTIONS (tetap sebagai pure function)
+// HELPER FUNCTIONS
 // ======================================================
 
 function getConsumptionPeriod(hour: number) {
@@ -53,7 +54,7 @@ export class NutritionService {
   constructor(private prisma: PrismaService) {}
 
   // ======================================================
-  // EXTRACT SUGAR FROM RAW TEXT (Pintar & Robust)
+  // EXTRACT SUGAR FROM RAW TEXT
   // ======================================================
   private extractSugarFromText(text: string): number {
     if (!text) return 0;
@@ -69,13 +70,11 @@ export class NutritionService {
 
     const parseGrams = (str: string): number | null => {
       if (!str) return null;
-      // 1) Angka + satuan gram (g, gram, gr)
       const gramMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i);
       if (gramMatch) {
         const val = parseFloat(gramMatch[1].replace(',', '.'));
         if (!isNaN(val)) return val;
       }
-      // 2) Angka + mg → konversi ke gram
       const mgMatch = str.match(/(\d+(?:[.,]\d+)?)\s*mg(?![a-z])/i);
       if (mgMatch) {
         const val = parseFloat(mgMatch[1].replace(',', '.'));
@@ -91,7 +90,7 @@ export class NutritionService {
 
     const lines = text.split('\n');
 
-    // ---- PASS 1: cari baris dengan label gula ----
+    // PASS 1: label gula langsung
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!matchesSugar(line)) continue;
@@ -99,14 +98,12 @@ export class NutritionService {
 
       console.log('🍬 SUGAR LINE:', line);
 
-      // Coba inline dulu
       const inline = parseGrams(line);
       if (inline !== null) {
         console.log('✅ INLINE SUGAR:', inline);
         return inline;
       }
 
-      // Cari angka di 3 baris berikutnya
       for (let offset = 1; offset <= 3; offset++) {
         const nextLine = lines[i + offset]?.trim();
         if (!nextLine) break;
@@ -118,7 +115,7 @@ export class NutritionService {
       }
     }
 
-    // ---- PASS 2: fallback karbohidrat ----
+    // PASS 2: fallback karbohidrat
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!matchesCarb(line)) continue;
@@ -154,6 +151,16 @@ export class NutritionService {
 
     if (!file) {
       throw new BadRequestException('Image file is required');
+    }
+
+    // ======== VALIDASI USER ========
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new BadRequestException(
+        'User tidak ditemukan. Silakan login kembali.',
+      );
     }
 
     const today = new Date().toLocaleDateString('en-CA');
@@ -309,6 +316,17 @@ export class NutritionService {
       };
     } catch (processingError: any) {
       console.error('❌ PROCESSING ERROR:', processingError);
+
+      // Handle Prisma-specific known errors
+      if (
+        processingError instanceof Prisma.PrismaClientKnownRequestError &&
+        processingError.code === 'P2003'
+      ) {
+        throw new BadRequestException(
+          'Gagal menyimpan data: User tidak valid atau tidak ditemukan.',
+        );
+      }
+
       throw new BadRequestException(
         `Gagal memproses hasil scan: ${processingError.message || 'Unknown error'}`,
       );
