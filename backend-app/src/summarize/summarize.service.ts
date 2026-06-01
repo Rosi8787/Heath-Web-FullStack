@@ -142,8 +142,7 @@ Rules:
     // ======================================================
 
     const response = await this.groq.chat.completions.create({
-      model: 'llama3-70b-8192',
-
+      model: 'llama3-8b-8192', // ← sudah diganti
       messages: [
         {
           role: 'user',
@@ -160,11 +159,8 @@ Rules:
 
     return {
       success: true,
-
       totalScans: scans.length,
-
       totalSugar,
-
       summary,
     };
   }
