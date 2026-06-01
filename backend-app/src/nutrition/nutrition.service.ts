@@ -274,6 +274,14 @@ export class NutritionService {
       );
     }
 
+     if (ocrResponse.data.error) {
+      return {
+        success: false,
+        needsManualInput: true,
+        message: `OCR error: ${ocrResponse.data.error}`,
+      };
+    }
+
     const extractedText: string = ocrResponse.data.text || '';
 
     // =======================================================
