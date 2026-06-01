@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import shutil
 import os
+import uvicorn
 
 app = FastAPI()
 
@@ -12,9 +13,7 @@ os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 print("INIT OCR...")
 
-ocr = PaddleOCR(
-    lang="en"
-)
+ocr = PaddleOCR(lang="en")
 
 print("OCR READY")
 
@@ -32,21 +31,14 @@ def preprocess_image(img):
     )
 
     sharpen_kernel = np.array([
-        [0,-1,0],
-        [-1,5,-1],
-        [0,-1,0]
+        [0, -1, 0],
+        [-1, 5, -1],
+        [0, -1, 0]
     ])
 
-    gray = cv2.filter2D(
-        gray,
-        -1,
-        sharpen_kernel
-    )
+    gray = cv2.filter2D(gray, -1, sharpen_kernel)
 
-    gray = cv2.medianBlur(
-        gray,
-        3
-    )
+    gray = cv2.medianBlur(gray, 3)
 
     gray = cv2.adaptiveThreshold(
         gray,
@@ -62,38 +54,28 @@ def preprocess_image(img):
 
 @app.get("/")
 def root():
-    return {
-        "status": "ok"
-    }
+    return {"status": "ok"}
 
 
 @app.post("/test")
 async def test():
-    return {
-        "ok": True
-    }
+    return {"ok": True}
 
 
 @app.post("/ocr")
-async def scan_ocr(
-    file: UploadFile = File(...)
-    print("OCR REQUEST RECEIVED")
-):  
+async def scan_ocr(file: UploadFile = File(...)):  # ✅ print() dipindah ke dalam body
+
+    print("OCR REQUEST RECEIVED")  # ✅ sekarang ada di dalam function body
 
     temp_path = f"{TEMP_FOLDER}/{file.filename}"
 
     with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(
-            file.file,
-            buffer
-        )
+        shutil.copyfileobj(file.file, buffer)
 
     img = cv2.imread(temp_path)
 
     if img is None:
-
         os.remove(temp_path)
-
         return {
             "text": "",
             "ocr_data": [],
@@ -102,36 +84,21 @@ async def scan_ocr(
 
     processed = preprocess_image(img)
 
-    processed_path = (
-        f"{TEMP_FOLDER}/processed_{file.filename}"
-    )
+    processed_path = f"{TEMP_FOLDER}/processed_{file.filename}"
 
-    cv2.imwrite(
-        processed_path,
-        processed
-    )
+    cv2.imwrite(processed_path, processed)
 
     try:
-
-        result = ocr.ocr(
-            processed_path
-        )
-
+        result = ocr.ocr(processed_path)
     except Exception as e:
-
-        return {
-            "error": str(e)
-        }
+        return {"error": str(e)}
 
     extracted_text = ""
     ocr_data = []
 
     try:
-
         if result and result[0]:
-
             for line in result[0]:
-
                 if line is None:
                     continue
 
@@ -146,10 +113,7 @@ async def scan_ocr(
                 })
 
     except Exception as e:
-
-        return {
-            "error": f"parse error: {e}"
-        }
+        return {"error": f"parse error: {e}"}
 
     if os.path.exists(temp_path):
         os.remove(temp_path)
@@ -161,3 +125,13 @@ async def scan_ocr(
         "text": extracted_text,
         "ocr_data": ocr_data
     }
+
+
+# ✅ Tambahan: uvicorn startup block
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8080,
+        reload=False
+    )
