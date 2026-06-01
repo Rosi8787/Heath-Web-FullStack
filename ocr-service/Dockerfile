@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install build dependencies (termasuk swig untuk PyMuPDF)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     make \
-    swig \               # <-- TAMBAHKAN INI
+    swig \
     pkg-config \
     libjpeg-dev \
     zlib1g-dev \
@@ -19,7 +20,6 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 
-# Matikan fitur Tesseract agar kompilasi PyMuPDF tidak membutuhkan library tambahan
 ENV PYMUPDF_NO_TESSERACT=1
 
 RUN pip install --no-cache-dir -r requirements.txt
