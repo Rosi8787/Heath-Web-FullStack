@@ -20,10 +20,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 ENV PYMUPDF_NO_TESSERACT=1
-ENV CFLAGS="-Wno-incompatible-pointer-types"
+ENV CFLAGS="-Wno-error=incompatible-pointer-types"
 
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]  
