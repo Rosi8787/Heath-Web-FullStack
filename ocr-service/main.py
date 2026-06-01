@@ -1,14 +1,20 @@
+import os
+# Matikan OneDNN & batasi penggunaan OpenMP agar stabil di CPU-only
+os.environ['FLAGS_use_onednn'] = '0'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+os.environ['OMP_NUM_THREADS'] = '1'  # opsional, mengurangi beban CPU
+
 from fastapi import FastAPI, UploadFile, File
 from paddleocr import PaddleOCR
 import cv2
 import numpy as np
-import os
+import os as _os  # jangan bentrok dengan nama os, bisa di-rename
 import uvicorn
 
 app = FastAPI()
 
 TEMP_FOLDER = "temp"
-os.makedirs(TEMP_FOLDER, exist_ok=True)
+_os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 print("INIT OCR...")
 ocr = PaddleOCR(lang='en')
@@ -61,7 +67,7 @@ async def scan_ocr(file: UploadFile = File(...)):
 
     img = cv2.imread(temp_path)
     if img is None:
-        os.remove(temp_path)
+        _os.remove(temp_path)
         return {"text": "", "ocr_data": [], "error": "cannot read image"}
 
     processed_path = None
@@ -105,8 +111,8 @@ async def scan_ocr(file: UploadFile = File(...)):
     finally:
         # Bersihkan file temporary
         for p in [temp_path, processed_path]:
-            if p and os.path.exists(p):
-                os.remove(p)
+            if p and _os.path.exists(p):
+                _os.remove(p)
 
 
 if __name__ == "__main__":
