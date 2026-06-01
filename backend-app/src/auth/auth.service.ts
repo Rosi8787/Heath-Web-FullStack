@@ -153,13 +153,13 @@ export class AuthService {
       'Password confirmation does not match',
     );
   }
-  
+
   // =========================================
   // STRONG PASSWORD VALIDATION
   // =========================================
 
   const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#])[A-Za-z\d@$!%*?&.#]{8,}$/;
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_])[A-Za-z\d@$!%*?&.#]{8,}$/;
 
   if (!passwordRegex.test(newPassword)) {
     throw new BadRequestException(
