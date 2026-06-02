@@ -53,11 +53,11 @@ export class NutritionController {
     return this.nutritionService.scanNutrition(userId, dto, file);
   }
 
-  // di controller
   @Post('manual')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt')) // 🔐 Wajib pakai guard
   async manualInput(@Req() req, @Body() dto: ScanNutritionDto) {
-    const userId = req.user.id; // <-- PASTIKAN ADA .id
+    // req.user akan terisi oleh JwtStrategy.validate()
+    const userId = req.user.id; // karena payload pakai id
     return this.nutritionService.addManualNutrition(userId, dto);
   }
 
