@@ -4,16 +4,12 @@ import { Prisma } from '@prisma/client';
 import axios from 'axios';
 import FormData from 'form-data';
 import { ScanNutritionDto } from './dto/scan-nutrition.dto';
-
 import moment from 'moment-timezone';
 
 // ======================================================
 // HELPER FUNCTIONS
 // ======================================================
 
-/**
- * Mendapatkan objek moment dengan zona waktu Asia/Jakarta (WIB)
- */
 function getJakartaMoment(date?: Date | string) {
   if (date) {
     return moment(date).tz('Asia/Jakarta');
@@ -21,45 +17,27 @@ function getJakartaMoment(date?: Date | string) {
   return moment().tz('Asia/Jakarta');
 }
 
-/**
- * Mendapatkan string tanggal YYYY-MM-DD berdasarkan waktu Jakarta sekarang
- */
 function getJakartaDateKey(): string {
   return getJakartaMoment().format('YYYY-MM-DD');
 }
 
-/**
- * Mendapatkan jam (0-23) berdasarkan waktu Jakarta sekarang
- */
 function getJakartaHour(): number {
   return getJakartaMoment().hour();
 }
 
-/**
- * Mendapatkan weekKey dalam format YYYY-Wxx (minggu dimulai hari Senin)
- */
 function getJakartaWeekKey(): string {
   const jakarta = getJakartaMoment();
   return `${jakarta.year()}-W${jakarta.week()}`;
 }
 
-/**
- * Mendapatkan monthKey YYYY-MM
- */
 function getJakartaMonthKey(): string {
   return getJakartaMoment().format('YYYY-MM');
 }
 
-/**
- * Mendapatkan yearKey YYYY
- */
 function getJakartaYearKey(): string {
   return getJakartaMoment().format('YYYY');
 }
 
-/**
- * Menentukan periode konsumsi berdasarkan jam WIB
- */
 function getConsumptionPeriod(hour: number) {
   if (hour >= 5 && hour < 11) return 'MORNING';
   if (hour >= 11 && hour < 15) return 'AFTERNOON';
@@ -67,9 +45,6 @@ function getConsumptionPeriod(hour: number) {
   return 'NIGHT';
 }
 
-/**
- * Konversi Date UTC ke string dengan format YYYY-MM-DD HH:mm:ss zona WIB
- */
 function formatToWIB(date: Date): string {
   return moment(date).tz('Asia/Jakarta').format('YYYY-MM-DD HH:mm:ss');
 }
@@ -84,8 +59,7 @@ function getSugarGrade(sugar: number): { grade: string; description: string } {
   if (sugar < 1)
     return {
       grade: 'A',
-      description:
-        'Minuman dengan kandungan gula sangat rendah (<1g per sajian).',
+      description: 'Minuman dengan kandungan gula sangat rendah (<1g per sajian).',
     };
   if (sugar < 5)
     return {
@@ -95,8 +69,7 @@ function getSugarGrade(sugar: number): { grade: string; description: string } {
   if (sugar <= 10)
     return {
       grade: 'C',
-      description:
-        'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.',
+      description: 'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.',
     };
   return {
     grade: 'D',
@@ -139,9 +112,7 @@ export class NutritionService {
 
     const parseGrams = (str: string): number | null => {
       if (!str) return null;
-      const gramMatch = str.match(
-        /(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i,
-      );
+      const gramMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i);
       if (gramMatch) {
         const val = parseFloat(gramMatch[1].replace(',', '.'));
         if (!isNaN(val)) return val;
@@ -154,10 +125,8 @@ export class NutritionService {
       return null;
     };
 
-    const matchesSugar = (str: string) =>
-      SUGAR_LABELS.some((label) => str.toLowerCase().includes(label));
-    const matchesCarb = (str: string) =>
-      CARB_LABELS.some((label) => str.toLowerCase().includes(label));
+    const matchesSugar = (str: string) => SUGAR_LABELS.some((label) => str.toLowerCase().includes(label));
+    const matchesCarb = (str: string) => CARB_LABELS.some((label) => str.toLowerCase().includes(label));
 
     const lines = text.split('\n');
 
@@ -224,17 +193,13 @@ export class NutritionService {
       throw new BadRequestException('Image file is required');
     }
 
-    // ======== VALIDASI USER ========
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
     if (!user) {
-      throw new BadRequestException(
-        'User tidak ditemukan. Silakan login kembali.',
-      );
+      throw new BadRequestException('User tidak ditemukan. Silakan login kembali.');
     }
 
-    // ======== CEK LIMIT HARIAN BERDASARKAN WAKTU INDONESIA ========
     const todayKey = getJakartaDateKey();
     const totalToday = await this.prisma.nutritionScan.count({
       where: { userId, dayKey: todayKey },
@@ -244,28 +209,19 @@ export class NutritionService {
       where: { userId },
     });
 
-    const isPremium =
-      subscription &&
-      subscription.status === 'ACTIVE' &&
-      subscription.expiresAt > new Date();
+    const isPremium = subscription && subscription.status === 'ACTIVE' && subscription.expiresAt > new Date();
 
     if (!isPremium && totalToday >= 10) {
-      throw new BadRequestException(
-        'Free users can only scan 10 times per day',
-      );
+      throw new BadRequestException('Free users can only scan 10 times per day');
     }
 
     const productName = dto.productName || 'Unknown Product';
     const manualSugar = dto.sugar ? parseFloat(dto.sugar) : null;
 
-    // ======================================================
-    // IF USER INPUT MANUAL
-    // ======================================================
+    // MANUAL INPUT
     if (manualSugar !== null) {
       const sugarStatus = getSugarStatus(manualSugar);
       const gradeData = getSugarGrade(manualSugar);
-
-      // Gunakan waktu Jakarta untuk key dan periode
       const nowJakarta = getJakartaMoment();
       const nutrition = await this.prisma.nutritionScan.create({
         data: {
@@ -275,7 +231,7 @@ export class NutritionService {
           sugarStatus,
           sugarGrade: gradeData.grade,
           aiSummary: `This product contains ${manualSugar}g sugar and is classified as ${sugarStatus}.`,
-          consumedAt: new Date(), // tetap UTC di DB
+          consumedAt: new Date(),
           consumptionPeriod: getConsumptionPeriod(nowJakarta.hour()),
           dayKey: nowJakarta.format('YYYY-MM-DD'),
           weekKey: getJakartaWeekKey(),
@@ -284,7 +240,6 @@ export class NutritionService {
         },
       });
 
-      // Kembalikan consumedAt dalam format WIB
       return {
         success: true,
         message: 'Manual nutrition input success',
@@ -295,11 +250,8 @@ export class NutritionService {
       };
     }
 
-    // ======================================================
-    // SEND IMAGE TO OCR
-    // ======================================================
+    // OCR
     console.log('Sending image to OCR service...');
-
     const formData = new FormData();
     formData.append('file', file.buffer, {
       filename: file.originalname,
@@ -318,9 +270,7 @@ export class NutritionService {
       });
     } catch (err: any) {
       console.error('OCR REQUEST FAILED:', err.message);
-      throw new BadRequestException(
-        `OCR service error: ${err.message || 'Unknown error'}`,
-      );
+      throw new BadRequestException(`OCR service error: ${err.message || 'Unknown error'}`);
     }
 
     if (ocrResponse.data.error) {
@@ -332,13 +282,9 @@ export class NutritionService {
     }
 
     const extractedText: string = ocrResponse.data.text || '';
-
     console.log('=========== OCR TEXT ===========');
     console.log(extractedText);
 
-    // ======================================================
-    // PROCESSING (WRAPPED IN TRY-CATCH)
-    // ======================================================
     try {
       let sugar = this.extractSugarFromText(extractedText);
       sugar = Math.round(sugar * 10) / 10;
@@ -348,7 +294,6 @@ export class NutritionService {
       }
 
       const sugarDetected = sugar > 0;
-
       if (!sugarDetected) {
         return {
           success: false,
@@ -364,7 +309,6 @@ export class NutritionService {
 
       console.log({ sugar, sugarStatus, sugarGrade: gradeData.grade });
 
-      // ======== GUNAKAN WAKTU INDONESIA UNTUK AGREGASI ========
       const nowJakarta = getJakartaMoment();
       const hour = nowJakarta.hour();
       const dayKey = nowJakarta.format('YYYY-MM-DD');
@@ -380,7 +324,7 @@ export class NutritionService {
           sugar,
           sugarStatus,
           sugarGrade: gradeData.grade,
-          consumedAt: new Date(), // tetap UTC di DB
+          consumedAt: new Date(),
           consumptionPeriod,
           dayKey,
           weekKey,
@@ -390,7 +334,6 @@ export class NutritionService {
         },
       });
 
-      // Kembalikan consumedAt dalam format WIB
       return {
         success: true,
         message: 'Nutrition scanned successfully',
@@ -402,26 +345,16 @@ export class NutritionService {
       };
     } catch (processingError: any) {
       console.error('❌ PROCESSING ERROR:', processingError);
-
-      if (
-        processingError instanceof Prisma.PrismaClientKnownRequestError &&
-        processingError.code === 'P2003'
-      ) {
-        throw new BadRequestException(
-          'Gagal menyimpan data: User tidak valid atau tidak ditemukan.',
-        );
+      if (processingError instanceof Prisma.PrismaClientKnownRequestError && processingError.code === 'P2003') {
+        throw new BadRequestException('Gagal menyimpan data: User tidak valid atau tidak ditemukan.');
       }
-
-      throw new BadRequestException(
-        `Gagal memproses hasil scan: ${processingError.message || 'Unknown error'}`,
-      );
+      throw new BadRequestException(`Gagal memproses hasil scan: ${processingError.message || 'Unknown error'}`);
     }
   }
 
   // ======================================================
   // TIMER TERAKHIR KONSUMSI
   // ======================================================
-
   async getLastConsumption(userId: string) {
     const lastScan = await this.prisma.nutritionScan.findFirst({
       where: { userId },
@@ -430,7 +363,7 @@ export class NutritionService {
 
     if (!lastScan) return { message: 'No consumption yet' };
 
-    const now = new Date(); // UTC
+    const now = new Date();
     const diffMs = now.getTime() - new Date(lastScan.consumedAt).getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -438,7 +371,7 @@ export class NutritionService {
     return {
       lastProduct: lastScan.productName,
       lastSugar: lastScan.sugar,
-      consumedAt: formatToWIB(lastScan.consumedAt), // konversi ke WIB
+      consumedAt: formatToWIB(lastScan.consumedAt),
       elapsed: `${hours}h ${minutes}m ago`,
     };
   }
@@ -446,147 +379,110 @@ export class NutritionService {
   // ======================================================
   // DAILY STATS
   // ======================================================
-
   async getDailyStats(userId: string, date: string) {
-    // date dari frontend diharapkan sudah dalam format YYYY-MM-DI zona Indonesia
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId, dayKey: date },
     });
-
-    const totalSugar = scans.reduce(
-      (sum, item) => sum + Number(item.sugar || 0),
-      0,
-    );
-
+    const totalSugar = scans.reduce((sum, item) => sum + Number(item.sugar || 0), 0);
     return { date, totalScans: scans.length, totalSugar, scans };
   }
 
   // ======================================================
   // WEEKLY STATS
   // ======================================================
-
   async getWeeklyStats(userId: string) {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId },
       orderBy: { consumedAt: 'asc' },
     });
-
     const grouped: Record<string, number> = {};
     scans.forEach((scan) => {
       const key = scan.weekKey || 'UNKNOWN';
       grouped[key] = (grouped[key] || 0) + Number(scan.sugar || 0);
     });
-
     return grouped;
   }
 
   // ======================================================
   // MONTHLY STATS
   // ======================================================
-
   async getMonthlyStats(userId: string) {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId },
     });
-
     const grouped: Record<string, number> = {};
     scans.forEach((scan) => {
       const key = scan.monthKey || 'UNKNOWN';
       grouped[key] = (grouped[key] || 0) + Number(scan.sugar || 0);
     });
-
     return grouped;
   }
 
   // ======================================================
   // YEARLY STATS
   // ======================================================
-
   async getYearlyStats(userId: string) {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId },
     });
-
     const grouped: Record<string, number> = {};
     scans.forEach((scan) => {
       const key = scan.yearKey || 'UNKNOWN';
       grouped[key] = (grouped[key] || 0) + Number(scan.sugar || 0);
     });
-
     return grouped;
   }
 
   // ======================================================
   // POLA KONSUMSI
   // ======================================================
-
   async getConsumptionPattern(userId: string) {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId },
     });
-
     const stats = { MORNING: 0, AFTERNOON: 0, EVENING: 0, NIGHT: 0 };
-
     scans.forEach((scan) => {
       const period = scan.consumptionPeriod as keyof typeof stats;
       if (period && period in stats) stats[period]++;
     });
-
     return stats;
   }
 
   // ======================================================
   // HISTORY
   // ======================================================
-
   async getHistory(userId: string, date?: string) {
-    // Jika tidak ada date, gunakan hari ini berdasarkan waktu Indonesia
     const targetDate = date || getJakartaDateKey();
     console.log('USER:', userId, '| DATE:', targetDate);
-
     const finalData = await this.prisma.nutritionScan.findMany({
       where: { userId, dayKey: targetDate },
     });
-
     console.log('HISTORY COUNT:', finalData.length);
-
-    // Konversi consumedAt ke WIB untuk setiap record
     const dataWithLocalTime = finalData.map((item) => ({
       ...item,
       consumedAt: formatToWIB(item.consumedAt),
     }));
-
     return dataWithLocalTime;
   }
 
   // ======================================================
   // DAILY SUMMARY
   // ======================================================
-
   async getDailySummary(userId: string) {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId },
     });
-
-    const totalSugar = scans.reduce(
-      (sum, item) => sum + Number(item.sugar || 0),
-      0,
-    );
-
+    const totalSugar = scans.reduce((sum, item) => sum + Number(item.sugar || 0), 0);
     return { totalScans: scans.length, totalSugar };
   }
 
   // ======================================================
   // MANUAL INPUT
   // ======================================================
-
   async addManualNutrition(userId: string, dto: ScanNutritionDto) {
-    // 1. Validate required fields
     if (!dto.productName || dto.sugar === undefined || dto.sugar === null) {
       throw new BadRequestException('productName and sugar are required');
     }
-
-    // 2. Validate user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -594,37 +490,24 @@ export class NutritionService {
       throw new BadRequestException('User not found');
     }
 
-    // 3. Daily limit check berdasarkan waktu Indonesia
     const todayKey = getJakartaDateKey();
     const totalToday = await this.prisma.nutritionScan.count({
       where: { userId, dayKey: todayKey },
     });
-
     const subscription = await this.prisma.subscription.findUnique({
       where: { userId },
     });
-    const isPremium =
-      subscription &&
-      subscription.status === 'ACTIVE' &&
-      subscription.expiresAt > new Date();
-
+    const isPremium = subscription && subscription.status === 'ACTIVE' && subscription.expiresAt > new Date();
     if (!isPremium && totalToday >= 10) {
-      throw new BadRequestException(
-        'Free users can only scan 10 times per day',
-      );
+      throw new BadRequestException('Free users can only scan 10 times per day');
     }
 
-    // 4. Prepare data
     const productName = dto.productName.trim();
     const sugar = dto.sugar;
-
     const sugarStatus = getSugarStatus(sugar);
     const gradeData = getSugarGrade(sugar);
-
-    // Gunakan waktu Jakarta untuk key dan periode
     const nowJakarta = getJakartaMoment();
 
-    // 5. Create record
     const nutrition = await this.prisma.nutritionScan.create({
       data: {
         userId,
@@ -633,7 +516,7 @@ export class NutritionService {
         sugarStatus,
         sugarGrade: gradeData.grade,
         aiSummary: `Manual entry: This product contains ${sugar}g sugar and is classified as ${sugarStatus}.`,
-        consumedAt: new Date(), // UTC
+        consumedAt: new Date(),
         consumptionPeriod: getConsumptionPeriod(nowJakarta.hour()),
         dayKey: nowJakarta.format('YYYY-MM-DD'),
         weekKey: getJakartaWeekKey(),
@@ -642,7 +525,6 @@ export class NutritionService {
       },
     });
 
-    // Kembalikan dengan consumedAt format WIB
     return {
       success: true,
       message: 'Manual nutrition entry saved successfully',
@@ -650,6 +532,225 @@ export class NutritionService {
         ...nutrition,
         consumedAt: formatToWIB(nutrition.consumedAt),
       },
+    };
+  }
+
+  // ======================================================
+  // CHART DATA FOR FRONTEND
+  // ======================================================
+
+  async getDailyChartAll(userId: string) {
+    const endDate = getJakartaMoment();
+    const startDate = endDate.clone().subtract(29, 'days');
+
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: {
+        userId,
+        dayKey: {
+          gte: startDate.format('YYYY-MM-DD'),
+          lte: endDate.format('YYYY-MM-DD'),
+        },
+      },
+      orderBy: { dayKey: 'asc' },
+    });
+
+    const dailyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.dayKey) {
+        dailyData[scan.dayKey] = (dailyData[scan.dayKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    const result: { date: string; sugar: number }[] = [];
+    let current = startDate.clone();
+    while (current <= endDate) {
+      const dateKey = current.format('YYYY-MM-DD');
+      result.push({
+        date: dateKey,
+        sugar: dailyData[dateKey] || 0,
+      });
+      current.add(1, 'day');
+    }
+
+    return {
+      view: 'daily',
+      mode: 'all',
+      startDate: startDate.format('YYYY-MM-DD'),
+      endDate: endDate.format('YYYY-MM-DD'),
+      data: result,
+    };
+  }
+
+  async getDailyChartWeek(userId: string, year: number, week: number) {
+    const startOfWeek = moment()
+      .tz('Asia/Jakarta')
+      .year(year)
+      .week(week)
+      .startOf('week');
+    const endOfWeek = startOfWeek.clone().endOf('week');
+
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: {
+        userId,
+        dayKey: {
+          gte: startOfWeek.format('YYYY-MM-DD'),
+          lte: endOfWeek.format('YYYY-MM-DD'),
+        },
+      },
+      orderBy: { dayKey: 'asc' },
+    });
+
+    const dailyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.dayKey) {
+        dailyData[scan.dayKey] = (dailyData[scan.dayKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    const result: { date: string; sugar: number }[] = [];
+    let current = startOfWeek.clone();
+    while (current <= endOfWeek) {
+      const dateKey = current.format('YYYY-MM-DD');
+      result.push({
+        date: dateKey,
+        sugar: dailyData[dateKey] || 0,
+      });
+      current.add(1, 'day');
+    }
+
+    return {
+      view: 'daily',
+      mode: 'week',
+      year,
+      week,
+      startDate: startOfWeek.format('YYYY-MM-DD'),
+      endDate: endOfWeek.format('YYYY-MM-DD'),
+      data: result,
+    };
+  }
+
+  async getWeeklyChartAll(userId: string) {
+    const currentYear = getJakartaMoment().year();
+    const startOfYear = moment().tz('Asia/Jakarta').year(currentYear).startOf('year');
+    const endOfYear = moment().tz('Asia/Jakarta').year(currentYear).endOf('year');
+
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: {
+        userId,
+        consumedAt: {
+          gte: startOfYear.toDate(),
+          lte: endOfYear.toDate(),
+        },
+      },
+    });
+
+    const weeklyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.weekKey) {
+        weeklyData[scan.weekKey] = (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    const sortedWeeks = Object.keys(weeklyData).sort();
+    const data = sortedWeeks.map((weekKey) => ({
+      week: weekKey,
+      sugar: weeklyData[weekKey],
+    }));
+
+    return {
+      view: 'weekly',
+      mode: 'all',
+      year: currentYear,
+      data,
+    };
+  }
+
+  async getMonthlyChartAll(userId: string) {
+    const currentYear = getJakartaMoment().year();
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: {
+        userId,
+        yearKey: String(currentYear),
+      },
+    });
+
+    const monthlyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.monthKey) {
+        monthlyData[scan.monthKey] = (monthlyData[scan.monthKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    const months: { month: string; sugar: number }[] = [];
+    for (let m = 1; m <= 12; m++) {
+      const monthKey = `${currentYear}-${String(m).padStart(2, '0')}`;
+      months.push({
+        month: monthKey,
+        sugar: monthlyData[monthKey] || 0,
+      });
+    }
+
+    return {
+      view: 'monthly',
+      mode: 'all',
+      year: currentYear,
+      data: months,
+    };
+  }
+
+  async getMonthlyChartMonth(userId: string, year: number, month: number) {
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: {
+        userId,
+        monthKey,
+      },
+    });
+
+    const weeklyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.weekKey) {
+        weeklyData[scan.weekKey] = (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    const sortedWeeks = Object.keys(weeklyData).sort();
+    const data = sortedWeeks.map((weekKey) => ({
+      week: weekKey,
+      sugar: weeklyData[weekKey],
+    }));
+
+    return {
+      view: 'monthly',
+      mode: 'month',
+      year,
+      month,
+      data,
+    };
+  }
+
+  async getYearlyChartAll(userId: string) {
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: { userId },
+    });
+
+    const yearlyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.yearKey) {
+        yearlyData[scan.yearKey] = (yearlyData[scan.yearKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    const sortedYears = Object.keys(yearlyData).sort();
+    const data = sortedYears.map((year) => ({
+      year,
+      sugar: yearlyData[year],
+    }));
+
+    return {
+      view: 'yearly',
+      mode: 'all',
+      data,
     };
   }
 }

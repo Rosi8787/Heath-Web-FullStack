@@ -9,6 +9,7 @@ import {
   Body,
   Param,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -120,5 +121,73 @@ export class NutritionController {
   @UseGuards(JwtAuthGuard)
   async getPattern(@Req() req: any) {
     return this.nutritionService.getConsumptionPattern(req.user.id);
+  }
+
+  // ======================================================
+  // CHART ENDPOINTS (Daily, Weekly, Monthly, Yearly)
+  // ======================================================
+
+  @Get('chart/daily')
+  @UseGuards(JwtAuthGuard)
+  async getDailyChart(
+    @Req() req: any,
+    @Query('mode') mode: 'all' | 'week',
+    @Query('year') year?: string,
+    @Query('week') week?: string,
+  ) {
+    const userId = req.user.id;
+    if (mode === 'week') {
+      if (!year || !week) {
+        throw new BadRequestException(
+          'year and week are required for week mode',
+        );
+      }
+      return this.nutritionService.getDailyChartWeek(
+        userId,
+        parseInt(year),
+        parseInt(week),
+      );
+    }
+    // default mode = all
+    return this.nutritionService.getDailyChartAll(userId);
+  }
+
+  @Get('chart/weekly')
+  @UseGuards(JwtAuthGuard)
+  async getWeeklyChart(@Req() req: any, @Query('mode') mode: 'all' = 'all') {
+    const userId = req.user.id;
+    // hanya mendukung all untuk weekly chart (agregasi per minggu)
+    return this.nutritionService.getWeeklyChartAll(userId);
+  }
+
+  @Get('chart/monthly')
+  @UseGuards(JwtAuthGuard)
+  async getMonthlyChart(
+    @Req() req: any,
+    @Query('mode') mode: 'all' | 'month',
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    const userId = req.user.id;
+    if (mode === 'month') {
+      if (!year || !month) {
+        throw new BadRequestException(
+          'year and month are required for month mode',
+        );
+      }
+      return this.nutritionService.getMonthlyChartMonth(
+        userId,
+        parseInt(year),
+        parseInt(month),
+      );
+    }
+    return this.nutritionService.getMonthlyChartAll(userId);
+  }
+
+  @Get('chart/yearly')
+  @UseGuards(JwtAuthGuard)
+  async getYearlyChart(@Req() req: any, @Query('mode') mode: 'all' = 'all') {
+    const userId = req.user.id;
+    return this.nutritionService.getYearlyChartAll(userId);
   }
 }
