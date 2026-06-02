@@ -11,8 +11,8 @@ export class ScanNutritionDto {
   // OPTIONAL
   // karena kadang OCR berhasil
   // kadang user input manual
-  @IsOptional()
-  @Type(() => Number)
+  
+  // @Type(() => Number)
   @IsOptional()
   @IsNumber()
   sugar?: number;
