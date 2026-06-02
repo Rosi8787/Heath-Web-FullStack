@@ -19,6 +19,8 @@ import { memoryStorage } from 'multer';
 
 import { NutritionService } from './nutrition.service';
 import { ScanNutritionDto } from './dto/scan-nutrition.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { GetUser } from 'src/helper/basic-auth';
 
 @Controller('nutrition')
 export class NutritionController {
@@ -52,11 +54,14 @@ export class NutritionController {
   }
 
   // di controller
-@Post('manual')
-async manualInput(@Req() req, @Body() dto: ScanNutritionDto) {
-  const userId = req.user.id; // sesuaikan auth mu
-  return this.nutritionService.addManualNutrition(userId, dto);
-} 
+  @Post('manual')
+  @UseGuards(AuthGuard('jwt'))
+  async manualInput(
+    @GetUser('id') userId: string,
+    @Body() dto: ScanNutritionDto,
+  ) {
+    return this.nutritionService.addManualNutrition(userId, dto);
+  }
 
   @Get('history')
   @UseGuards(JwtAuthGuard)
