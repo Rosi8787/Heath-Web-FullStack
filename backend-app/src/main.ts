@@ -24,8 +24,6 @@ async function bootstrap() {
   
   // 2. Setup path ke '/docs'
   SwaggerModule.setup('docs', app, document);
-
-  app.enableCors();
   
   const port = process.env.PORT || 3000;
 
