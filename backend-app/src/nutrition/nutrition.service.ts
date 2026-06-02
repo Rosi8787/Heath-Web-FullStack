@@ -160,6 +160,7 @@ export class NutritionService {
   // ======================================================
 
   async scanNutrition(userId: string, dto: any, file: Express.Multer.File) {
+    
     console.log('FILE =', file?.originalname);
 
     if (!file) {

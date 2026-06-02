@@ -51,12 +51,12 @@ export class NutritionController {
     return this.nutritionService.scanNutrition(userId, dto, file);
   }
 
-  @Post('manual')
-  @UseGuards(JwtAuthGuard)
-  async addManualNutrition(@Req() req: any, @Body() dto: ScanNutritionDto) {
-    const userId = req.user.id;
-    return this.nutritionService.addManualNutrition(userId, dto);
-  }
+  // di controller
+@Post('manual')
+async manualInput(@Req() req, @Body() dto: ScanNutritionDto) {
+  const userId = req.user.id; // sesuaikan auth mu
+  return this.nutritionService.addManualNutrition(userId, dto);
+} 
 
   @Get('history')
   @UseGuards(JwtAuthGuard)
