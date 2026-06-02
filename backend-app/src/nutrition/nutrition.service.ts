@@ -5,15 +5,73 @@ import axios from 'axios';
 import FormData from 'form-data';
 import { ScanNutritionDto } from './dto/scan-nutrition.dto';
 
+import moment from 'moment-timezone';
+
 // ======================================================
 // HELPER FUNCTIONS
 // ======================================================
 
+/**
+ * Mendapatkan objek moment dengan zona waktu Asia/Jakarta (WIB)
+ */
+function getJakartaMoment(date?: Date | string) {
+  if (date) {
+    return moment(date).tz('Asia/Jakarta');
+  }
+  return moment().tz('Asia/Jakarta');
+}
+
+/**
+ * Mendapatkan string tanggal YYYY-MM-DD berdasarkan waktu Jakarta sekarang
+ */
+function getJakartaDateKey(): string {
+  return getJakartaMoment().format('YYYY-MM-DD');
+}
+
+/**
+ * Mendapatkan jam (0-23) berdasarkan waktu Jakarta sekarang
+ */
+function getJakartaHour(): number {
+  return getJakartaMoment().hour();
+}
+
+/**
+ * Mendapatkan weekKey dalam format YYYY-Wxx (minggu dimulai hari Senin)
+ */
+function getJakartaWeekKey(): string {
+  const jakarta = getJakartaMoment();
+  return `${jakarta.year()}-W${jakarta.week()}`;
+}
+
+/**
+ * Mendapatkan monthKey YYYY-MM
+ */
+function getJakartaMonthKey(): string {
+  return getJakartaMoment().format('YYYY-MM');
+}
+
+/**
+ * Mendapatkan yearKey YYYY
+ */
+function getJakartaYearKey(): string {
+  return getJakartaMoment().format('YYYY');
+}
+
+/**
+ * Menentukan periode konsumsi berdasarkan jam WIB
+ */
 function getConsumptionPeriod(hour: number) {
   if (hour >= 5 && hour < 11) return 'MORNING';
   if (hour >= 11 && hour < 15) return 'AFTERNOON';
   if (hour >= 15 && hour < 19) return 'EVENING';
   return 'NIGHT';
+}
+
+/**
+ * Konversi Date UTC ke string dengan format YYYY-MM-DD HH:mm:ss zona WIB
+ */
+function formatToWIB(date: Date): string {
+  return moment(date).tz('Asia/Jakarta').format('YYYY-MM-DD HH:mm:ss');
 }
 
 function getSugarStatus(sugar: number): string {
@@ -160,7 +218,6 @@ export class NutritionService {
   // ======================================================
 
   async scanNutrition(userId: string, dto: any, file: Express.Multer.File) {
-    
     console.log('FILE =', file?.originalname);
 
     if (!file) {
@@ -177,10 +234,10 @@ export class NutritionService {
       );
     }
 
-    const today = new Date().toLocaleDateString('en-CA');
-
+    // ======== CEK LIMIT HARIAN BERDASARKAN WAKTU INDONESIA ========
+    const todayKey = getJakartaDateKey();
     const totalToday = await this.prisma.nutritionScan.count({
-      where: { userId, dayKey: today },
+      where: { userId, dayKey: todayKey },
     });
 
     const subscription = await this.prisma.subscription.findUnique({
@@ -204,11 +261,12 @@ export class NutritionService {
     // ======================================================
     // IF USER INPUT MANUAL
     // ======================================================
-
     if (manualSugar !== null) {
       const sugarStatus = getSugarStatus(manualSugar);
       const gradeData = getSugarGrade(manualSugar);
 
+      // Gunakan waktu Jakarta untuk key dan periode
+      const nowJakarta = getJakartaMoment();
       const nutrition = await this.prisma.nutritionScan.create({
         data: {
           userId,
@@ -217,20 +275,29 @@ export class NutritionService {
           sugarStatus,
           sugarGrade: gradeData.grade,
           aiSummary: `This product contains ${manualSugar}g sugar and is classified as ${sugarStatus}.`,
+          consumedAt: new Date(), // tetap UTC di DB
+          consumptionPeriod: getConsumptionPeriod(nowJakarta.hour()),
+          dayKey: nowJakarta.format('YYYY-MM-DD'),
+          weekKey: getJakartaWeekKey(),
+          monthKey: getJakartaMonthKey(),
+          yearKey: getJakartaYearKey(),
         },
       });
 
+      // Kembalikan consumedAt dalam format WIB
       return {
         success: true,
         message: 'Manual nutrition input success',
-        data: nutrition,
+        data: {
+          ...nutrition,
+          consumedAt: formatToWIB(nutrition.consumedAt),
+        },
       };
     }
 
     // ======================================================
     // SEND IMAGE TO OCR
     // ======================================================
-
     console.log('Sending image to OCR service...');
 
     const formData = new FormData();
@@ -297,12 +364,13 @@ export class NutritionService {
 
       console.log({ sugar, sugarStatus, sugarGrade: gradeData.grade });
 
-      const now = new Date();
-      const hour = now.getHours();
-      const dayKey = now.toLocaleDateString('en-CA');
-      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const yearKey = `${now.getFullYear()}`;
-      const weekKey = `${now.getFullYear()}-W${Math.ceil(now.getDate() / 7)}`;
+      // ======== GUNAKAN WAKTU INDONESIA UNTUK AGREGASI ========
+      const nowJakarta = getJakartaMoment();
+      const hour = nowJakarta.hour();
+      const dayKey = nowJakarta.format('YYYY-MM-DD');
+      const monthKey = nowJakarta.format('YYYY-MM');
+      const yearKey = nowJakarta.format('YYYY');
+      const weekKey = getJakartaWeekKey();
       const consumptionPeriod = getConsumptionPeriod(hour);
 
       const nutrition = await this.prisma.nutritionScan.create({
@@ -312,7 +380,7 @@ export class NutritionService {
           sugar,
           sugarStatus,
           sugarGrade: gradeData.grade,
-          consumedAt: now,
+          consumedAt: new Date(), // tetap UTC di DB
           consumptionPeriod,
           dayKey,
           weekKey,
@@ -322,16 +390,19 @@ export class NutritionService {
         },
       });
 
+      // Kembalikan consumedAt dalam format WIB
       return {
         success: true,
         message: 'Nutrition scanned successfully',
-        data: nutrition,
+        data: {
+          ...nutrition,
+          consumedAt: formatToWIB(nutrition.consumedAt),
+        },
         extractedText,
       };
     } catch (processingError: any) {
       console.error('❌ PROCESSING ERROR:', processingError);
 
-      // Handle Prisma-specific known errors
       if (
         processingError instanceof Prisma.PrismaClientKnownRequestError &&
         processingError.code === 'P2003'
@@ -359,7 +430,7 @@ export class NutritionService {
 
     if (!lastScan) return { message: 'No consumption yet' };
 
-    const now = new Date();
+    const now = new Date(); // UTC
     const diffMs = now.getTime() - new Date(lastScan.consumedAt).getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -367,7 +438,7 @@ export class NutritionService {
     return {
       lastProduct: lastScan.productName,
       lastSugar: lastScan.sugar,
-      consumedAt: lastScan.consumedAt,
+      consumedAt: formatToWIB(lastScan.consumedAt), // konversi ke WIB
       elapsed: `${hours}h ${minutes}m ago`,
     };
   }
@@ -377,6 +448,7 @@ export class NutritionService {
   // ======================================================
 
   async getDailyStats(userId: string, date: string) {
+    // date dari frontend diharapkan sudah dalam format YYYY-MM-DI zona Indonesia
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId, dayKey: date },
     });
@@ -468,7 +540,8 @@ export class NutritionService {
   // ======================================================
 
   async getHistory(userId: string, date?: string) {
-    const targetDate = date || new Date().toLocaleDateString('en-CA');
+    // Jika tidak ada date, gunakan hari ini berdasarkan waktu Indonesia
+    const targetDate = date || getJakartaDateKey();
     console.log('USER:', userId, '| DATE:', targetDate);
 
     const finalData = await this.prisma.nutritionScan.findMany({
@@ -477,7 +550,13 @@ export class NutritionService {
 
     console.log('HISTORY COUNT:', finalData.length);
 
-    return finalData;
+    // Konversi consumedAt ke WIB untuk setiap record
+    const dataWithLocalTime = finalData.map((item) => ({
+      ...item,
+      consumedAt: formatToWIB(item.consumedAt),
+    }));
+
+    return dataWithLocalTime;
   }
 
   // ======================================================
@@ -515,10 +594,10 @@ export class NutritionService {
       throw new BadRequestException('User not found');
     }
 
-    // 3. Daily limit check (same as scanNutrition)
-    const today = new Date().toLocaleDateString('en-CA');
+    // 3. Daily limit check berdasarkan waktu Indonesia
+    const todayKey = getJakartaDateKey();
     const totalToday = await this.prisma.nutritionScan.count({
-      where: { userId, dayKey: today },
+      where: { userId, dayKey: todayKey },
     });
 
     const subscription = await this.prisma.subscription.findUnique({
@@ -542,6 +621,9 @@ export class NutritionService {
     const sugarStatus = getSugarStatus(sugar);
     const gradeData = getSugarGrade(sugar);
 
+    // Gunakan waktu Jakarta untuk key dan periode
+    const nowJakarta = getJakartaMoment();
+
     // 5. Create record
     const nutrition = await this.prisma.nutritionScan.create({
       data: {
@@ -551,19 +633,23 @@ export class NutritionService {
         sugarStatus,
         sugarGrade: gradeData.grade,
         aiSummary: `Manual entry: This product contains ${sugar}g sugar and is classified as ${sugarStatus}.`,
-        consumedAt: new Date(),
-        consumptionPeriod: getConsumptionPeriod(new Date().getHours()),
-        dayKey: new Date().toLocaleDateString('en-CA'),
-        weekKey: `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`,
-        monthKey: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
-        yearKey: `${new Date().getFullYear()}`,
+        consumedAt: new Date(), // UTC
+        consumptionPeriod: getConsumptionPeriod(nowJakarta.hour()),
+        dayKey: nowJakarta.format('YYYY-MM-DD'),
+        weekKey: getJakartaWeekKey(),
+        monthKey: getJakartaMonthKey(),
+        yearKey: getJakartaYearKey(),
       },
     });
 
+    // Kembalikan dengan consumedAt format WIB
     return {
       success: true,
       message: 'Manual nutrition entry saved successfully',
-      data: nutrition,
+      data: {
+        ...nutrition,
+        consumedAt: formatToWIB(nutrition.consumedAt),
+      },
     };
   }
 }
