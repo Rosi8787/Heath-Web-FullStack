@@ -10,74 +10,89 @@ from typing import List, Dict, Any
 app = FastAPI()
 
 # ------------------------------
-# Tesseract path for Railway (adjust if needed)
+# Tesseract path (Railway: /usr/bin/tesseract)
 # ------------------------------
-if os.name == 'nt':  # Windows
+if os.name == 'nt':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-else:  # Linux / Railway
+else:
     pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 # ------------------------------
-# Enhanced preprocessing
+# Advanced preprocessing
 # ------------------------------
-def preprocess_for_ocr(img: np.ndarray) -> np.ndarray:
-    """Apply CLAHE, denoising, adaptive thresholding, and optional deskew."""
-    # Resize if too wide (preserve aspect)
+def preprocess_image(img: np.ndarray) -> np.ndarray:
+    """Super‑charged preprocessing for small nutrition text."""
+    # Resize if too small (increase resolution)
     h, w = img.shape[:2]
-    if w > 1200:
+    if w < 800:
         scale = 1200 / w
-        new_w = 1200
-        new_h = int(h * scale)
-        img = cv2.resize(img, (new_w, new_h))
-
-    # Convert to LAB and apply CLAHE on L-channel
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    l = clahe.apply(l)
-    enhanced = cv2.merge([l, a, b])
-    enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+        img = cv2.resize(img, (1200, int(h * scale)))
 
     # Convert to grayscale
-    gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Denoise (bilateral filter preserves edges)
-    denoised = cv2.bilateralFilter(gray, 9, 75, 75)
+    # Apply CLAHE (contrast)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
 
-    # Adaptive threshold for variable lighting
-    binary = cv2.adaptiveThreshold(
-        denoised, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 11, 2
-    )
+    # Sharpening kernel
+    kernel_sharpen = np.array([[-1, -1, -1],
+                               [-1,  9, -1],
+                               [-1, -1, -1]])
+    sharp = cv2.filter2D(enhanced, -1, kernel_sharpen)
 
-    # Optional: remove small noise
-    kernel = np.ones((1, 1), np.uint8)
+    # Bilateral filter (preserve edges, reduce noise)
+    denoised = cv2.bilateralFilter(sharp, 9, 75, 75)
+
+    # Adaptive threshold
+    binary = cv2.adaptiveThreshold(denoised, 255,
+                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY, 15, 3)
+
+    # Morphological close to join broken characters
+    kernel = np.ones((2, 2), np.uint8)
     cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
 
     return cleaned
 
-def deskew(image: np.ndarray) -> np.ndarray:
-    """Rotate image to correct slight skew (optional)."""
-    coords = np.column_stack(np.where(image > 0))
-    if len(coords) < 100:
-        return image
-    angle = cv2.minAreaRect(coords)[-1]
-    if angle < -45:
-        angle = 90 + angle
-    if abs(angle) < 0.5:
-        return image
-    (h, w) = image.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated = cv2.warpAffine(image, M, (w, h),
-                             flags=cv2.INTER_CUBIC,
-                             borderMode=cv2.BORDER_REPLICATE)
-    return rotated
+def run_tesseract_multi(img: np.ndarray) -> Dict[str, Any]:
+    """Run Tesseract with multiple PSM modes and merge results."""
+    configs = [
+        '--oem 3 --psm 6',      # uniform block
+        '--oem 3 --psm 11',     # sparse text
+        '--oem 3 --psm 4'       # single column
+    ]
+    all_words = []
+    best_full_text = ""
 
-# ------------------------------
-# OCR endpoint
-# ------------------------------
+    for cfg in configs:
+        data = pytesseract.image_to_data(img, config=cfg, output_type=pytesseract.Output.DICT)
+        words = []
+        for i in range(len(data['text'])):
+            txt = data['text'][i].strip()
+            if not txt:
+                continue
+            conf = data['conf'][i]
+            confidence = float(conf) if conf != '-1' else 0.0
+            words.append({
+                "text": txt,
+                "score": confidence,
+                "bbox": {"x": data['left'][i], "y": data['top'][i],
+                         "w": data['width'][i], "h": data['height'][i]}
+            })
+        all_words.extend(words)
+        full = pytesseract.image_to_string(img, config=cfg).strip()
+        if len(full) > len(best_full_text):
+            best_full_text = full
+
+    # Remove duplicate words based on bbox proximity (simple heuristic)
+    unique_words = []
+    for w in all_words:
+        if not any(abs(w['bbox']['x'] - u['bbox']['x']) < 10 and
+                   abs(w['bbox']['y'] - u['bbox']['y']) < 10 for u in unique_words):
+            unique_words.append(w)
+    return {"text": best_full_text, "words": unique_words}
+
 @app.get("/")
 def root():
     return {"status": "ok"}
@@ -89,56 +104,12 @@ async def scan_ocr(file: UploadFile = File(...)):
         np_arr = np.frombuffer(contents, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         if img is None:
-            return {"text": "", "error": "cannot read image"}
+            return {"text": "", "error": "Cannot read image"}
 
-        processed = preprocess_for_ocr(img)
-        # Optional deskew (uncomment if needed)
-        # processed = deskew(processed)
+        processed = preprocess_image(img)
+        result = run_tesseract_multi(processed)
 
-        # Use Tesseract with better config
-        custom_config = r'--oem 3 --psm 6 -c preserve_interword_spaces=1'
-
-        # Get detailed data including bounding boxes
-        data = pytesseract.image_to_data(
-            processed,
-            config=custom_config,
-            output_type=pytesseract.Output.DICT
-        )
-
-        words: List[Dict[str, Any]] = []
-        full_text_lines = []
-
-        n_boxes = len(data['text'])
-        for i in range(n_boxes):
-            txt = data['text'][i].strip()
-            if not txt:
-                continue
-            conf = data['conf'][i]
-            try:
-                confidence = float(conf) if conf != '-1' else 0.0
-            except:
-                confidence = 0.0
-
-            # Bounding box
-            x = data['left'][i]
-            y = data['top'][i]
-            w = data['width'][i]
-            h = data['height'][i]
-
-            words.append({
-                "text": txt,
-                "score": confidence,
-                "bbox": {"x": x, "y": y, "w": w, "h": h}
-            })
-
-            # Reconstruct full text line by line (using block/line numbers)
-            # Simpler: use image_to_string for full text fallback
-        full_text = pytesseract.image_to_string(processed, config=custom_config)
-
-        return {
-            "text": full_text.strip(),
-            "words": words
-        }
+        return result
 
     except Exception as e:
         return {"text": "", "error": str(e)}

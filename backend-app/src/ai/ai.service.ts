@@ -15,32 +15,34 @@ interface OcrResponse {
 
 @Injectable()
 export class AiService {
-  // Extended sugar labels (Indonesian & English)
-  private readonly SUGAR_LABELS = [
-    'total sugars', 'added sugars', 'gula total', 'gula tambahan',
-    'sugars', 'sugar', 'gula', 'sug', 'sukrosa', 'fructose',
-    'glucose', 'gula pasir', 'gula merah', 'cane sugar', 'palm sugar'
-  ];
-
-  private readonly CARB_LABELS = [
-    'total carbohydrate', 'total carb', 'karbohidrat total',
-    'carbohydrate', 'karbohidrat', 'carb'
+  // Sugar labels with common OCR typos
+  private readonly SUGAR_PATTERNS = [
+    /gula/i, /sugar/i, /sugars?/i, /sukrosa/i, /fructose/i,
+    /gu1a/i, /sugzr/i, /gu[a-z0-9]*/i, /sug[a-z0-9]*/i
   ];
 
   // ------------------------------------------------------------------
-  // Helper: parse grams from any string (supports "12g", "12.5 g", "12,5gr", "12 gram")
+  // Fuzzy match: check if text is similar to any sugar label
+  // ------------------------------------------------------------------
+  private isSugarLabel(text: string): boolean {
+    const lower = text.toLowerCase();
+    return this.SUGAR_PATTERNS.some(pattern => pattern.test(lower));
+  }
+
+  // ------------------------------------------------------------------
+  // Parse grams from any string (extremely robust)
   // ------------------------------------------------------------------
   private parseGrams(text: string): number | null {
     if (!text) return null;
-    // Remove commas used as thousand separators (e.g., "1,000" -> "1000")
     let cleaned = text.replace(/,(\d{3})/g, '$1');
-    // Replace decimal comma with dot
     cleaned = cleaned.replace(/,(\d+)/g, '.$1');
 
+    // Look for number + optional unit (g, gr, gram, mg)
     const patterns = [
       /(\d+(?:\.\d+)?)\s*(?:gram|grams|gr|g)(?![a-z])/i,
       /(\d+(?:\.\d+)?)\s*mg(?![a-z])/i,
-      /(\d+(?:\.\d+)?)\s*g(?![a-z])/i
+      /(\d+(?:\.\d+)?)\s*g(?![a-z])/i,
+      /(\d+(?:\.\d+)?)\s*$/  // just a number (maybe sugar value)
     ];
 
     for (const pattern of patterns) {
@@ -48,119 +50,103 @@ export class AiService {
       if (match) {
         let value = parseFloat(match[1]);
         if (!isNaN(value)) {
-          if (pattern.source.includes('mg')) {
-            value = Math.round((value / 1000) * 100) / 100;
-          }
-          return value;
+          if (pattern.source.includes('mg')) value = value / 1000;
+          if (value >= 0 && value <= 100) return Math.round(value * 10) / 10;
         }
       }
     }
     return null;
   }
 
-  private isNutritionValue(value: number): boolean {
-    return value >= 0 && value <= 100;
-  }
-
   // ------------------------------------------------------------------
-  // Spatial analysis: group words by line (based on y‑coordinate overlap)
+  // Spatial search (label + number to right or below)
   // ------------------------------------------------------------------
-  private groupWordsByLine(words: Word[], yTolerance = 10): Word[][] {
+  private groupWordsByLine(words: Word[], yTol = 15): Word[][] {
     if (!words.length) return [];
-    const sorted = [...words].sort((a, b) => (a.bbox?.y || 0) - (b.bbox?.y || 0));
+    const sorted = [...words].sort((a,b) => (a.bbox?.y||0) - (b.bbox?.y||0));
     const lines: Word[][] = [];
-    let currentLine: Word[] = [sorted[0]];
-    let currentY = sorted[0].bbox?.y || 0;
-
-    for (let i = 1; i < sorted.length; i++) {
+    let curLine: Word[] = [sorted[0]];
+    let curY = sorted[0].bbox?.y || 0;
+    for (let i=1; i<sorted.length; i++) {
       const y = sorted[i].bbox?.y || 0;
-      if (Math.abs(y - currentY) <= yTolerance) {
-        currentLine.push(sorted[i]);
-      } else {
-        lines.push(currentLine);
-        currentLine = [sorted[i]];
-        currentY = y;
+      if (Math.abs(y - curY) <= yTol) curLine.push(sorted[i]);
+      else {
+        lines.push(curLine.sort((a,b) => (a.bbox?.x||0) - (b.bbox?.x||0)));
+        curLine = [sorted[i]];
+        curY = y;
       }
     }
-    if (currentLine.length) lines.push(currentLine);
-    // Sort words inside each line by x
-    return lines.map(line => line.sort((a, b) => (a.bbox?.x || 0) - (b.bbox?.x || 0)));
+    if (curLine.length) lines.push(curLine);
+    return lines;
   }
 
-  // ------------------------------------------------------------------
-  // Extract sugar using spatial proximity (label + nearby number with 'g')
-  // ------------------------------------------------------------------
   private extractSugarSpatial(words: Word[]): number | null {
     const lines = this.groupWordsByLine(words);
-    // First pass: same line, label and number to the right (within 5 words)
+    // Same line
     for (const line of lines) {
-      for (let i = 0; i < line.length; i++) {
-        const currentText = line[i].text.toLowerCase();
-        if (this.SUGAR_LABELS.some(label => currentText.includes(label))) {
-          // Look ahead up to 5 words on the same line
-          for (let offset = 1; offset <= 5 && i + offset < line.length; offset++) {
-            const grams = this.parseGrams(line[i + offset].text);
-            if (grams !== null && this.isNutritionValue(grams)) {
-              console.log(`[SPATIAL] Sugar label '${line[i].text}' → grams = ${grams}`);
-              return grams;
-            }
+      for (let i=0; i<line.length; i++) {
+        if (this.isSugarLabel(line[i].text)) {
+          for (let j=i+1; j<=i+4 && j<line.length; j++) {
+            const grams = this.parseGrams(line[j].text);
+            if (grams !== null && grams >=0 && grams <= 100) return grams;
           }
         }
       }
     }
-
-    // Second pass: label on one line, value on next line (directly below)
-    for (let lineIdx = 0; lineIdx < lines.length - 1; lineIdx++) {
-      const currentLine = lines[lineIdx];
-      const nextLine = lines[lineIdx + 1];
-      for (const word of currentLine) {
-        if (this.SUGAR_LABELS.some(label => word.text.toLowerCase().includes(label))) {
-          for (const nextWord of nextLine) {
+    // Next line
+    for (let i=0; i<lines.length-1; i++) {
+      for (const word of lines[i]) {
+        if (this.isSugarLabel(word.text)) {
+          for (const nextWord of lines[i+1]) {
             const grams = this.parseGrams(nextWord.text);
-            if (grams !== null && this.isNutritionValue(grams)) {
-              console.log(`[SPATIAL] Sugar label '${word.text}' → value on next line = ${grams}`);
-              return grams;
-            }
+            if (grams !== null && grams >=0 && grams <= 100) return grams;
           }
         }
       }
     }
-
     return null;
   }
 
   // ------------------------------------------------------------------
-  // Fallback: old keyword + adjacent look‑up (without spatial data)
+  // Direct regex on full text (most reliable)
   // ------------------------------------------------------------------
-  private extractSugarKeyword(ocrData: Word[]): number {
-    // Fallback when no bbox or spatial fails
-    for (let i = 0; i < ocrData.length; i++) {
-      const currentText = ocrData[i]?.text || '';
-      if (this.SUGAR_LABELS.some(label => currentText.toLowerCase().includes(label))) {
-        const inline = this.parseGrams(currentText);
-        if (inline !== null && this.isNutritionValue(inline)) return inline;
+  private extractSugarFromFullText(text: string): number | null {
+    // Look for patterns like "gula 5g", "sugar:5g", "gula tambahan 2g"
+    const patterns = [
+      /(?:gula|sugar|sukrosa|fructose)[:\s]*(\d+(?:[.,]\d+)?)\s*g/i,
+      /(?:gula|sugar)[:\s]*(\d+(?:[.,]\d+)?)\s*(?:gram|gr)?/i,
+      /(\d+(?:[.,]\d+)?)\s*g\s+(?:gula|sugar)/i
+    ];
+    for (const pat of patterns) {
+      const match = text.match(pat);
+      if (match) {
+        let val = parseFloat(match[1].replace(',', '.'));
+        if (!isNaN(val) && val >=0 && val <= 100) return val;
+      }
+    }
+    return null;
+  }
 
-        for (let offset = 1; offset <= 5; offset++) {
-          const next = ocrData[i + offset];
-          if (!next) break;
-          const value = this.parseGrams(next.text);
-          if (value !== null && this.isNutritionValue(value)) return value;
+  // ------------------------------------------------------------------
+  // Keyword fallback (no bbox)
+  // ------------------------------------------------------------------
+  private extractSugarKeyword(words: Word[]): number {
+    for (let i=0; i<words.length; i++) {
+      if (this.isSugarLabel(words[i].text)) {
+        const inline = this.parseGrams(words[i].text);
+        if (inline !== null) return inline;
+        for (let off=1; off<=5; off++) {
+          const val = this.parseGrams(words[i+off]?.text);
+          if (val !== null) return val;
         }
       }
     }
-
-    // Fallback to carbohydrate line (estimate sugar as ~10% of carbs? Not ideal, but better than 0)
-    for (let i = 0; i < ocrData.length; i++) {
-      const currentText = ocrData[i]?.text || '';
-      if (this.CARB_LABELS.some(label => currentText.toLowerCase().includes(label))) {
-        for (let offset = 1; offset <= 5; offset++) {
-          const next = ocrData[i + offset];
-          if (!next) break;
-          const value = this.parseGrams(next.text);
-          if (value !== null && this.isNutritionValue(value)) {
-            console.log(`[FALLBACK] Using carbohydrate value as sugar estimate: ${value}`);
-            return value;
-          }
+    // Last resort: look for any small number near "karbohidrat"
+    for (let i=0; i<words.length; i++) {
+      if (/karbohidrat|carbohydrate/i.test(words[i].text)) {
+        for (let off=1; off<=5; off++) {
+          const val = this.parseGrams(words[i+off]?.text);
+          if (val !== null && val >=0 && val <= 50) return val;
         }
       }
     }
@@ -168,67 +154,14 @@ export class AiService {
   }
 
   // ------------------------------------------------------------------
-  // Round sugar to 1 decimal
-  // ------------------------------------------------------------------
-  private roundSugar(value: number): number {
-    return Math.round(value * 10) / 10;
-  }
-
-  // ------------------------------------------------------------------
-  // Extract product name (skip nutrition keywords)
-  // ------------------------------------------------------------------
-  private extractProductName(text: string): string {
-    const SKIP_KEYWORDS = [
-      'nutrition', 'nutritional', 'informasi gizi', 'nilai gizi',
-      'carbohydrate', 'karbohidrat', 'protein', 'sugar', 'gula',
-      'fat', 'lemak', 'sodium', 'natrium', 'calories', 'kalori',
-      'energi', 'serving', 'porsi', 'sajian', 'daily value', 'akg',
-      'vitamin', 'mineral', 'percent', 'persen'
-    ];
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      const lower = trimmed.toLowerCase();
-      if (
-        trimmed.length > 3 && trimmed.length < 60 &&
-        !SKIP_KEYWORDS.some(kw => lower.includes(kw)) &&
-        !/^[\d\s.,g%mlkj]+$/i.test(trimmed)
-      ) {
-        return trimmed;
-      }
-    }
-    return 'Unknown Product';
-  }
-
-  private getSugarStatus(sugar: number): string {
-    if (sugar <= 5) return 'Low Sugar';
-    if (sugar <= 15) return 'Medium Sugar';
-    return 'High Sugar';
-  }
-
-  private getSugarGrade(sugar: number): { grade: string; description: string } {
-    if (sugar < 1) return { grade: 'A', description: 'Minuman dengan kandungan gula sangat rendah (<1g per sajian).' };
-    if (sugar < 5) return { grade: 'B', description: 'Minuman rendah gula dan masih direkomendasikan.' };
-    if (sugar <= 10) return { grade: 'C', description: 'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.' };
-    return { grade: 'D', description: 'Minuman dengan kandungan gula sangat tinggi.' };
-  }
-
-  // ------------------------------------------------------------------
-  // Main analysis method
+  // Main analysis
   // ------------------------------------------------------------------
   async analyzeNutritionImage(file: Express.Multer.File) {
-    console.log('🔥 ANALYZE NUTRITION DIPANGGIL');
-
     try {
       const formData = new FormData();
-      formData.append('file', file.buffer, {
-        filename: file.originalname,
-        contentType: file.mimetype,
-      });
+      formData.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
 
       const OCR_URL = process.env.OCR_URL?.replace(/\/+$/, '');
-      console.log('OCR_URL =', OCR_URL);
-
       const response = await axios.post<OcrResponse>(`${OCR_URL}/ocr`, formData, {
         headers: formData.getHeaders(),
         maxBodyLength: Infinity,
@@ -236,32 +169,33 @@ export class AiService {
       });
 
       const fullText = response.data.text || '';
-      let words: Word[] = response.data.words || [];
+      const words = response.data.words || [];
 
-      // Ensure each word has a bbox (for spatial analysis)
-      const hasSpatialData = words.length > 0 && words[0].bbox !== undefined;
+      let sugar: number | null = null;
 
-      let sugar = 0;
-
-      if (hasSpatialData) {
-        const spatialSugar = this.extractSugarSpatial(words);
-        if (spatialSugar !== null) {
-          sugar = spatialSugar;
-        } else {
-          // Fallback to keyword-based if spatial didn't find anything
-          sugar = this.extractSugarKeyword(words);
-        }
+      // 1. Try direct regex on full text (best)
+      sugar = this.extractSugarFromFullText(fullText);
+      if (sugar !== null) {
+        console.log('✅ Found via full‑text regex:', sugar);
+      } else if (words.length && words[0].bbox) {
+        // 2. Spatial analysis (if bbox present)
+        sugar = this.extractSugarSpatial(words);
+        if (sugar !== null) console.log('✅ Found via spatial:', sugar);
+        else sugar = this.extractSugarKeyword(words);
       } else {
-        // Old OCR response without bbox – use keyword method
         sugar = this.extractSugarKeyword(words);
       }
 
-      sugar = this.roundSugar(sugar);
-      if (isNaN(sugar) || sugar < 0 || sugar > 200) sugar = 0;
+      sugar = sugar !== null ? Math.round(sugar * 10) / 10 : 0;
+      if (isNaN(sugar) || sugar < 0) sugar = 0;
 
+      // Product name extraction (improved)
       const productName = this.extractProductName(fullText);
-      const sugarStatus = this.getSugarStatus(sugar);
-      const gradeData = this.getSugarGrade(sugar);
+      const sugarStatus = sugar <= 5 ? 'Low Sugar' : (sugar <= 15 ? 'Medium Sugar' : 'High Sugar');
+      const gradeData = sugar < 1 ? { grade: 'A', description: 'Gula sangat rendah (<1g)' } :
+                         sugar < 5 ? { grade: 'B', description: 'Rendah gula' } :
+                         sugar <= 10 ? { grade: 'C', description: 'Cukup tinggi, batasi' } :
+                         { grade: 'D', description: 'Sangat tinggi, hindari' };
 
       return {
         success: true,
@@ -272,19 +206,23 @@ export class AiService {
         sugarStatus,
         sugarGrade: gradeData.grade,
         gradeDescription: gradeData.description,
-        aiSummary: `Produk ini mengandung ${sugar}g gula dan masuk kategori grade ${gradeData.grade}. ${gradeData.description}`,
+        aiSummary: `Produk ini mengandung ${sugar}g gula (grade ${gradeData.grade}). ${gradeData.description}`
       };
     } catch (error: any) {
-      console.error('OCR ANALYZE ERROR:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      return {
-        success: false,
-        message: 'Failed to analyze nutrition image',
-        error: error?.message || 'Unknown error',
-      };
+      console.error('OCR Error:', error.message);
+      return { success: false, message: 'Failed to analyze', error: error.message };
     }
+  }
+
+  private extractProductName(text: string): string {
+    const skip = /(nutrition|gizi|calories|kalori|sugar|gula|fat|lemak|protein|karbohidrat|carbohydrate|serving|porsi|sodium|vitamin)/i;
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length > 3 && trimmed.length < 60 && !skip.test(trimmed) && !/^[\d\s.,g%ml]+$/.test(trimmed)) {
+        return trimmed;
+      }
+    }
+    return 'Produk';
   }
 }
