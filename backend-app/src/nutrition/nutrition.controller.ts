@@ -57,8 +57,7 @@ export class NutritionController {
   @Post('manual')
   @UseGuards(AuthGuard('jwt'))
   async manualInput(@Req() req, @Body() dto: ScanNutritionDto) {
-    // Ambil id dari object user
-    const userId = req.user.id; // <-- ini kuncinya
+    const userId = req.user.id; // <-- PASTIKAN ADA .id
     return this.nutritionService.addManualNutrition(userId, dto);
   }
 
