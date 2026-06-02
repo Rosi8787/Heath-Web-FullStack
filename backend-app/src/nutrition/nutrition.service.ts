@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import axios from 'axios';
 import FormData from 'form-data';
+import { ScanNutritionDto } from './dto/scan-nutrition.dto';
 
 // ======================================================
 // HELPER FUNCTIONS
@@ -60,17 +61,29 @@ export class NutritionService {
     if (!text) return 0;
 
     const SUGAR_LABELS = [
-      'total sugars', 'added sugars', 'gula total', 'gula tambahan',
-      'sugars', 'sugar', 'gula', 'sug',
+      'total sugars',
+      'added sugars',
+      'gula total',
+      'gula tambahan',
+      'sugars',
+      'sugar',
+      'gula',
+      'sug',
     ];
     const CARB_LABELS = [
-      'total carbohydrate', 'total carb', 'karbohidrat total',
-      'carbohydrate', 'karbohidrat', 'carb',
+      'total carbohydrate',
+      'total carb',
+      'karbohidrat total',
+      'carbohydrate',
+      'karbohidrat',
+      'carb',
     ];
 
     const parseGrams = (str: string): number | null => {
       if (!str) return null;
-      const gramMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i);
+      const gramMatch = str.match(
+        /(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i,
+      );
       if (gramMatch) {
         const val = parseFloat(gramMatch[1].replace(',', '.'));
         if (!isNaN(val)) return val;
@@ -481,5 +494,75 @@ export class NutritionService {
     );
 
     return { totalScans: scans.length, totalSugar };
+  }
+
+  // ======================================================
+  // MANUAL INPUT
+  // ======================================================
+
+  async addManualNutrition(userId: string, dto: ScanNutritionDto) {
+    // 1. Validate required fields
+    if (!dto.productName || dto.sugar === undefined || dto.sugar === null) {
+      throw new BadRequestException('productName and sugar are required');
+    }
+
+    // 2. Validate user exists
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // 3. Daily limit check (same as scanNutrition)
+    const today = new Date().toLocaleDateString('en-CA');
+    const totalToday = await this.prisma.nutritionScan.count({
+      where: { userId, dayKey: today },
+    });
+
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { userId },
+    });
+    const isPremium =
+      subscription &&
+      subscription.status === 'ACTIVE' &&
+      subscription.expiresAt > new Date();
+
+    if (!isPremium && totalToday >= 10) {
+      throw new BadRequestException(
+        'Free users can only scan 10 times per day',
+      );
+    }
+
+    // 4. Prepare data
+    const productName = dto.productName.trim();
+    const sugar = dto.sugar;
+
+    const sugarStatus = getSugarStatus(sugar);
+    const gradeData = getSugarGrade(sugar);
+
+    // 5. Create record
+    const nutrition = await this.prisma.nutritionScan.create({
+      data: {
+        userId,
+        productName,
+        sugar,
+        sugarStatus,
+        sugarGrade: gradeData.grade,
+        aiSummary: `Manual entry: This product contains ${sugar}g sugar and is classified as ${sugarStatus}.`,
+        consumedAt: new Date(),
+        consumptionPeriod: getConsumptionPeriod(new Date().getHours()),
+        dayKey: new Date().toLocaleDateString('en-CA'),
+        weekKey: `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`,
+        monthKey: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+        yearKey: `${new Date().getFullYear()}`,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Manual nutrition entry saved successfully',
+      data: nutrition,
+    };
   }
 }

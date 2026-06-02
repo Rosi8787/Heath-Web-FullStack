@@ -18,6 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 
 import { NutritionService } from './nutrition.service';
+import { ScanNutritionDto } from './dto/scan-nutrition.dto';
 
 @Controller('nutrition')
 export class NutritionController {
@@ -40,7 +41,7 @@ export class NutritionController {
     @Req() req: any,
   ) {
     console.log(req.headers['content-type']);
-    console.log("FILE =", file);
+    console.log('FILE =', file);
     console.log('MASUK CONTROLLER');
 
     const userId = req.user.id;
@@ -48,6 +49,13 @@ export class NutritionController {
     console.log('USER ID:', req.user.id);
 
     return this.nutritionService.scanNutrition(userId, dto, file);
+  }
+
+  @Post('manual')
+  @UseGuards(JwtAuthGuard)
+  async addManualNutrition(@Req() req: any, @Body() dto: ScanNutritionDto) {
+    const userId = req.user.id;
+    return this.nutritionService.addManualNutrition(userId, dto);
   }
 
   @Get('history')

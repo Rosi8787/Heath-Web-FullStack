@@ -1,12 +1,7 @@
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ScanNutritionDto {
-
   // OPTIONAL
   // karena kadang user scan dulu
   @IsOptional()
@@ -16,6 +11,8 @@ export class ScanNutritionDto {
   // OPTIONAL
   // karena kadang OCR berhasil
   // kadang user input manual
+  @IsOptional()
+  @Type(() => Number)
   @IsOptional()
   @IsNumber()
   sugar?: number;
