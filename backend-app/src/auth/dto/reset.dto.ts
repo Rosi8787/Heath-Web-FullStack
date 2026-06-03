@@ -6,20 +6,34 @@ import {
   MinLength,
 } from 'class-validator';
 
+import { ApiProperty } from '@nestjs/swagger';
+
 import {
   PASSWORD_REGEX,
   PASSWORD_MESSAGE,
 } from '../../common/constants/password.constant';
 
 export class ResetPasswordDto {
+  @ApiProperty({
+    description: 'The email of the user',
+    example: 'john.doe@example.com',
+  })  
   @IsNotEmpty()
   @IsEmail()
   email!: string;
-
+  
+  @ApiProperty({
+    description: 'The OTP sent to the user',
+    example: '123456',
+  })
   @IsNotEmpty()
   @IsString()
   otp!: string;
 
+  @ApiProperty({
+    description: 'The new password for the user',
+    example: 'NewPassword123!',
+  })
   @IsNotEmpty()
   @IsString()
   @MinLength(8, {
@@ -30,6 +44,10 @@ export class ResetPasswordDto {
   })
   newPassword!: string;
 
+  @ApiProperty({
+    description: 'Confirmation of the new password',
+    example: 'NewPassword123!',
+  })
   @IsNotEmpty()
   @IsString()
   confirmPassword!: string;

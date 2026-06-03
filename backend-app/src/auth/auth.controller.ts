@@ -4,7 +4,9 @@ import { AuthService } from './auth.service';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ApiTags,ApiOperation } from '@nestjs/swagger';
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -14,6 +16,7 @@ export class AuthController {
   // =========================================
 
   @Post('register')
+  @ApiOperation({ summary: 'Register a new user' })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -23,6 +26,7 @@ export class AuthController {
   // =========================================
 
   @Post('login')
+  @ApiOperation({ summary: 'Login to the application' })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -32,6 +36,7 @@ export class AuthController {
   // =========================================
 
   @Post('reset-password')
+  @ApiOperation({ summary: 'Reset user password' })
   async resetPassword(
     @Body('token') token: string,
     @Body('newPassword') newPassword: string,
