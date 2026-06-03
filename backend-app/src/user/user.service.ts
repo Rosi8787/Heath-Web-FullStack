@@ -139,34 +139,46 @@ export class UserService {
   // DELETE ACCOUNT
   // =========================================
 
- // =========================================
-// DELETE ACCOUNT
-// =========================================
+  // =========================================
+  // DELETE ACCOUNT
+  // =========================================
 
-async deleteAccount(userId: string) {
-  const user = await this.prisma.user.findUnique({
-    where: { id: userId },
-  });
+  // =========================================
+  // DELETE ACCOUNT
+  // =========================================
 
-  if (!user) {
-    throw new NotFoundException('User not found');
+  async deleteAccount(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Daftar model yang memiliki foreign key ke User (gunakan nama persis seperti di schema)
+    // Jika schema menggunakan PascalCase (contoh: NutritionScan), tulis 'NutritionScan'
+    // Jika menggunakan camelCase (contoh: nutritionScan), tulis 'nutritionScan'
+    const relatedModels = ['nutritionScan', 'subscription', 'otp']; // sesuaikan dengan nama model di schema Anda
+
+    for (const model of relatedModels) {
+      if (this.prisma[model]) {
+        await this.prisma[model].deleteMany({ where: { userId } });
+      } else {
+        console.warn(
+          `Model "${model}" tidak ditemukan di Prisma client. Hapus manual jika perlu.`,
+        );
+      }
+    }
+
+    // Hapus user setelah semua relasi dihapus
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    return {
+      success: true,
+      message: 'Account deleted successfully',
+    };
   }
-
-  // Hapus semua data yang memiliki relasi ke user
-  await this.prisma.nutritionScan.deleteMany({ where: { userId } });
-  await this.prisma.subscription.deleteMany({ where: { userId } });
-  await this.prisma.otp.deleteMany({ where: { userId } });
-  // Tambahkan model lain yang memiliki foreign key ke User jika ada
-  // Contoh: await this.prisma.refreshToken.deleteMany({ where: { userId } });
-
-  // Setelah semua relasi dihapus, baru hapus user
-  await this.prisma.user.delete({ where: { id: userId } });
-
-  return {
-    success: true,
-    message: 'Account deleted successfully',
-  };
-}
 
   // =========================================
   // UPDATE HEALTH PROFILE
