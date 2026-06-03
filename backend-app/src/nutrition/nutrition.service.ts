@@ -59,7 +59,8 @@ function getSugarGrade(sugar: number): { grade: string; description: string } {
   if (sugar < 1)
     return {
       grade: 'A',
-      description: 'Minuman dengan kandungan gula sangat rendah (<1g per sajian).',
+      description:
+        'Minuman dengan kandungan gula sangat rendah (<1g per sajian).',
     };
   if (sugar < 5)
     return {
@@ -69,7 +70,8 @@ function getSugarGrade(sugar: number): { grade: string; description: string } {
   if (sugar <= 10)
     return {
       grade: 'C',
-      description: 'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.',
+      description:
+        'Minuman dengan kandungan gula cukup tinggi dan sebaiknya dibatasi.',
     };
   return {
     grade: 'D',
@@ -112,7 +114,9 @@ export class NutritionService {
 
     const parseGrams = (str: string): number | null => {
       if (!str) return null;
-      const gramMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i);
+      const gramMatch = str.match(
+        /(\d+(?:[.,]\d+)?)\s*(?:gram|gr|g)(?![a-z])/i,
+      );
       if (gramMatch) {
         const val = parseFloat(gramMatch[1].replace(',', '.'));
         if (!isNaN(val)) return val;
@@ -125,8 +129,10 @@ export class NutritionService {
       return null;
     };
 
-    const matchesSugar = (str: string) => SUGAR_LABELS.some((label) => str.toLowerCase().includes(label));
-    const matchesCarb = (str: string) => CARB_LABELS.some((label) => str.toLowerCase().includes(label));
+    const matchesSugar = (str: string) =>
+      SUGAR_LABELS.some((label) => str.toLowerCase().includes(label));
+    const matchesCarb = (str: string) =>
+      CARB_LABELS.some((label) => str.toLowerCase().includes(label));
 
     const lines = text.split('\n');
 
@@ -197,7 +203,9 @@ export class NutritionService {
       where: { id: userId },
     });
     if (!user) {
-      throw new BadRequestException('User tidak ditemukan. Silakan login kembali.');
+      throw new BadRequestException(
+        'User tidak ditemukan. Silakan login kembali.',
+      );
     }
 
     const todayKey = getJakartaDateKey();
@@ -209,10 +217,15 @@ export class NutritionService {
       where: { userId },
     });
 
-    const isPremium = subscription && subscription.status === 'ACTIVE' && subscription.expiresAt > new Date();
+    const isPremium =
+      subscription &&
+      subscription.status === 'ACTIVE' &&
+      subscription.expiresAt > new Date();
 
     if (!isPremium && totalToday >= 10) {
-      throw new BadRequestException('Free users can only scan 10 times per day');
+      throw new BadRequestException(
+        'Free users can only scan 10 times per day',
+      );
     }
 
     const productName = dto.productName || 'Unknown Product';
@@ -270,7 +283,9 @@ export class NutritionService {
       });
     } catch (err: any) {
       console.error('OCR REQUEST FAILED:', err.message);
-      throw new BadRequestException(`OCR service error: ${err.message || 'Unknown error'}`);
+      throw new BadRequestException(
+        `OCR service error: ${err.message || 'Unknown error'}`,
+      );
     }
 
     if (ocrResponse.data.error) {
@@ -345,10 +360,17 @@ export class NutritionService {
       };
     } catch (processingError: any) {
       console.error('❌ PROCESSING ERROR:', processingError);
-      if (processingError instanceof Prisma.PrismaClientKnownRequestError && processingError.code === 'P2003') {
-        throw new BadRequestException('Gagal menyimpan data: User tidak valid atau tidak ditemukan.');
+      if (
+        processingError instanceof Prisma.PrismaClientKnownRequestError &&
+        processingError.code === 'P2003'
+      ) {
+        throw new BadRequestException(
+          'Gagal menyimpan data: User tidak valid atau tidak ditemukan.',
+        );
       }
-      throw new BadRequestException(`Gagal memproses hasil scan: ${processingError.message || 'Unknown error'}`);
+      throw new BadRequestException(
+        `Gagal memproses hasil scan: ${processingError.message || 'Unknown error'}`,
+      );
     }
   }
 
@@ -383,7 +405,10 @@ export class NutritionService {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId, dayKey: date },
     });
-    const totalSugar = scans.reduce((sum, item) => sum + Number(item.sugar || 0), 0);
+    const totalSugar = scans.reduce(
+      (sum, item) => sum + Number(item.sugar || 0),
+      0,
+    );
     return { date, totalScans: scans.length, totalSugar, scans };
   }
 
@@ -472,7 +497,10 @@ export class NutritionService {
     const scans = await this.prisma.nutritionScan.findMany({
       where: { userId },
     });
-    const totalSugar = scans.reduce((sum, item) => sum + Number(item.sugar || 0), 0);
+    const totalSugar = scans.reduce(
+      (sum, item) => sum + Number(item.sugar || 0),
+      0,
+    );
     return { totalScans: scans.length, totalSugar };
   }
 
@@ -497,9 +525,14 @@ export class NutritionService {
     const subscription = await this.prisma.subscription.findUnique({
       where: { userId },
     });
-    const isPremium = subscription && subscription.status === 'ACTIVE' && subscription.expiresAt > new Date();
+    const isPremium =
+      subscription &&
+      subscription.status === 'ACTIVE' &&
+      subscription.expiresAt > new Date();
     if (!isPremium && totalToday >= 10) {
-      throw new BadRequestException('Free users can only scan 10 times per day');
+      throw new BadRequestException(
+        'Free users can only scan 10 times per day',
+      );
     }
 
     const productName = dto.productName.trim();
@@ -557,7 +590,8 @@ export class NutritionService {
     const dailyData: Record<string, number> = {};
     scans.forEach((scan) => {
       if (scan.dayKey) {
-        dailyData[scan.dayKey] = (dailyData[scan.dayKey] || 0) + Number(scan.sugar);
+        dailyData[scan.dayKey] =
+          (dailyData[scan.dayKey] || 0) + Number(scan.sugar);
       }
     });
 
@@ -603,7 +637,8 @@ export class NutritionService {
     const dailyData: Record<string, number> = {};
     scans.forEach((scan) => {
       if (scan.dayKey) {
-        dailyData[scan.dayKey] = (dailyData[scan.dayKey] || 0) + Number(scan.sugar);
+        dailyData[scan.dayKey] =
+          (dailyData[scan.dayKey] || 0) + Number(scan.sugar);
       }
     });
 
@@ -631,8 +666,14 @@ export class NutritionService {
 
   async getWeeklyChartAll(userId: string) {
     const currentYear = getJakartaMoment().year();
-    const startOfYear = moment().tz('Asia/Jakarta').year(currentYear).startOf('year');
-    const endOfYear = moment().tz('Asia/Jakarta').year(currentYear).endOf('year');
+    const startOfYear = moment()
+      .tz('Asia/Jakarta')
+      .year(currentYear)
+      .startOf('year');
+    const endOfYear = moment()
+      .tz('Asia/Jakarta')
+      .year(currentYear)
+      .endOf('year');
 
     const scans = await this.prisma.nutritionScan.findMany({
       where: {
@@ -647,7 +688,8 @@ export class NutritionService {
     const weeklyData: Record<string, number> = {};
     scans.forEach((scan) => {
       if (scan.weekKey) {
-        weeklyData[scan.weekKey] = (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+        weeklyData[scan.weekKey] =
+          (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
       }
     });
 
@@ -665,6 +707,48 @@ export class NutritionService {
     };
   }
 
+  async getWeeklyChartMonth(userId: string, year: number, month: number) {
+    const startOfMonth = moment()
+      .tz('Asia/Jakarta')
+      .year(year)
+      .month(month - 1) // month 0-indexed
+      .startOf('month');
+    const endOfMonth = startOfMonth.clone().endOf('month');
+
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: {
+        userId,
+        consumedAt: {
+          gte: startOfMonth.toDate(),
+          lte: endOfMonth.toDate(),
+        },
+      },
+    });
+
+    const weeklyData: Record<string, number> = {};
+    scans.forEach((scan) => {
+      if (scan.weekKey) {
+        weeklyData[scan.weekKey] =
+          (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+      }
+    });
+
+    // Urutkan weekKey
+    const sortedWeeks = Object.keys(weeklyData).sort();
+    const data = sortedWeeks.map((weekKey) => ({
+      week: weekKey,
+      sugar: weeklyData[weekKey],
+    }));
+
+    return {
+      view: 'weekly',
+      mode: 'month',
+      year,
+      month,
+      data,
+    };
+  }
+
   async getMonthlyChartAll(userId: string) {
     const currentYear = getJakartaMoment().year();
     const scans = await this.prisma.nutritionScan.findMany({
@@ -677,7 +761,8 @@ export class NutritionService {
     const monthlyData: Record<string, number> = {};
     scans.forEach((scan) => {
       if (scan.monthKey) {
-        monthlyData[scan.monthKey] = (monthlyData[scan.monthKey] || 0) + Number(scan.sugar);
+        monthlyData[scan.monthKey] =
+          (monthlyData[scan.monthKey] || 0) + Number(scan.sugar);
       }
     });
 
@@ -710,7 +795,8 @@ export class NutritionService {
     const weeklyData: Record<string, number> = {};
     scans.forEach((scan) => {
       if (scan.weekKey) {
-        weeklyData[scan.weekKey] = (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+        weeklyData[scan.weekKey] =
+          (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
       }
     });
 
@@ -737,7 +823,8 @@ export class NutritionService {
     const yearlyData: Record<string, number> = {};
     scans.forEach((scan) => {
       if (scan.yearKey) {
-        yearlyData[scan.yearKey] = (yearlyData[scan.yearKey] || 0) + Number(scan.sugar);
+        yearlyData[scan.yearKey] =
+          (yearlyData[scan.yearKey] || 0) + Number(scan.sugar);
       }
     });
 

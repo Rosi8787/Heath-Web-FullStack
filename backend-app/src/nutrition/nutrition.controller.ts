@@ -152,13 +152,28 @@ export class NutritionController {
     return this.nutritionService.getDailyChartAll(userId);
   }
 
-  @Get('chart/weekly')
-  @UseGuards(JwtAuthGuard)
-  async getWeeklyChart(@Req() req: any, @Query('mode') mode: 'all' = 'all') {
-    const userId = req.user.id;
-    // hanya mendukung all untuk weekly chart (agregasi per minggu)
-    return this.nutritionService.getWeeklyChartAll(userId);
+@Get('chart/weekly')
+@UseGuards(JwtAuthGuard)
+async getWeeklyChart(
+  @Req() req: any,
+  @Query('mode') mode: 'all' | 'month' = 'all',
+  @Query('year') year?: string,
+  @Query('month') month?: string,
+) {
+  const userId = req.user.id;
+  if (mode === 'month') {
+    if (!year || !month) {
+      throw new BadRequestException('year and month are required for month mode');
+    }
+    return this.nutritionService.getWeeklyChartMonth(
+      userId,
+      parseInt(year),
+      parseInt(month),
+    );
   }
+  // default mode = all
+  return this.nutritionService.getWeeklyChartAll(userId);
+}
 
   @Get('chart/monthly')
   @UseGuards(JwtAuthGuard)
