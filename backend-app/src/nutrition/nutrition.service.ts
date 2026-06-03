@@ -727,7 +727,7 @@ export class NutritionService {
   // }
 
   async getWeeklyChartAll(userId: string) {
-    const now = getJakartaMoment();
+    const now = getJakartaMoment(); 
     const currentYear = now.year();
     const currentMonth = now.month() + 1;
     return this.getWeeklyChartMonth(userId, currentYear, currentMonth);
