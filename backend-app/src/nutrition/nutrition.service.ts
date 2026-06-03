@@ -31,14 +31,19 @@ function getJakartaHour(): number {
 // }
 
 // Ganti fungsi ini
+// Ganti fungsi getJakartaWeekKey() yang lama dengan kode berikut
 function getJakartaWeekKey(): string {
-  const now = getJakartaMoment();
+  const now = getJakartaMoment();               // WIB
+  const year = now.year();                      // tahun, misal 2026
   const startOfMonth = now.clone().startOf('month');
-  const dayOfMonth = now.date();
-  const startDayOfWeek = startOfMonth.day(); // 0 Minggu, 1 Senin, ...
+  const dayOfMonth = now.date();                // tanggal 1-31
+  const startDayOfWeek = startOfMonth.day();    // 0=Minggu, 1=Senin, ..., 6=Sabtu
+
+  // Hitung minggu relatif dalam bulan (1-5, kadang 6)
   let weekNumber = Math.ceil((dayOfMonth + startDayOfWeek) / 7);
-  weekNumber = Math.max(1, weekNumber);
-  return `W${weekNumber}`;
+  weekNumber = Math.max(1, weekNumber);         // minimal 1
+
+  return `${year}-W${weekNumber}`;
 }
 
 function getJakartaMonthKey(): string {
