@@ -708,46 +708,35 @@ export class NutritionService {
   }
 
   async getWeeklyChartMonth(userId: string, year: number, month: number) {
-    const startOfMonth = moment()
-      .tz('Asia/Jakarta')
-      .year(year)
-      .month(month - 1) // month 0-indexed
-      .startOf('month');
-    const endOfMonth = startOfMonth.clone().endOf('month');
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`; // contoh: "2026-06"
+  const scans = await this.prisma.nutritionScan.findMany({
+    where: {
+      userId,
+      monthKey, // filter presisi berdasarkan bulan
+    },
+  });
 
-    const scans = await this.prisma.nutritionScan.findMany({
-      where: {
-        userId,
-        consumedAt: {
-          gte: startOfMonth.toDate(),
-          lte: endOfMonth.toDate(),
-        },
-      },
-    });
+  const weeklyData: Record<string, number> = {};
+  scans.forEach((scan) => {
+    if (scan.weekKey) {
+      weeklyData[scan.weekKey] = (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+    }
+  });
 
-    const weeklyData: Record<string, number> = {};
-    scans.forEach((scan) => {
-      if (scan.weekKey) {
-        weeklyData[scan.weekKey] =
-          (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
-      }
-    });
+  const sortedWeeks = Object.keys(weeklyData).sort();
+  const data = sortedWeeks.map((weekKey) => ({
+    week: weekKey,
+    sugar: weeklyData[weekKey],
+  }));
 
-    // Urutkan weekKey
-    const sortedWeeks = Object.keys(weeklyData).sort();
-    const data = sortedWeeks.map((weekKey) => ({
-      week: weekKey,
-      sugar: weeklyData[weekKey],
-    }));
-
-    return {
-      view: 'weekly',
-      mode: 'month',
-      year,
-      month,
-      data,
-    };
-  }
+  return {
+    view: 'weekly',
+    mode: 'month',
+    year,
+    month,
+    data,
+  };
+}
 
   async getMonthlyChartAll(userId: string) {
     const currentYear = getJakartaMoment().year();
