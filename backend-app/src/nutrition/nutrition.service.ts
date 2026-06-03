@@ -708,35 +708,76 @@ export class NutritionService {
   }
 
   async getWeeklyChartMonth(userId: string, year: number, month: number) {
-  const monthKey = `${year}-${String(month).padStart(2, '0')}`; // contoh: "2026-06"
-  const scans = await this.prisma.nutritionScan.findMany({
-    where: {
-      userId,
-      monthKey, // filter presisi berdasarkan bulan
-    },
-  });
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
 
-  const weeklyData: Record<string, number> = {};
-  scans.forEach((scan) => {
-    if (scan.weekKey) {
-      weeklyData[scan.weekKey] = (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+    // Ambil semua scan dalam bulan tersebut, urutkan berdasarkan tanggal
+    const scans = await this.prisma.nutritionScan.findMany({
+      where: { userId, monthKey },
+      orderBy: { consumedAt: 'asc' },
+    });
+
+    if (scans.length === 0) {
+      return {
+        view: 'weekly',
+        mode: 'month',
+        year,
+        month,
+        data: [],
+      };
     }
-  });
 
-  const sortedWeeks = Object.keys(weeklyData).sort();
-  const data = sortedWeeks.map((weekKey) => ({
-    week: weekKey,
-    sugar: weeklyData[weekKey],
-  }));
+    // Kelompokkan berdasarkan minggu (relatif terhadap bulan)
+    // Kita akan assign nomor minggu 1,2,3,... berdasarkan urutan minggu yang muncul
+    const weekMap = new Map<string, number>(); // key: 'YYYY-Www' -> nomor urut
+    const weeklySugar: {
+      weekNumber: number;
+      sugar: number;
+      weekKeys: string[];
+    }[] = [];
 
-  return {
-    view: 'weekly',
-    mode: 'month',
-    year,
-    month,
-    data,
-  };
-}
+    let currentWeekNumber = 0;
+    let lastWeekKey = '';
+
+    scans.forEach((scan) => {
+      const weekKey = scan.weekKey; // asli, misal '2026-W23'
+      if (!weekKey) return;
+
+      if (weekKey !== lastWeekKey) {
+        // Minggu baru
+        currentWeekNumber++;
+        lastWeekKey = weekKey;
+        weekMap.set(weekKey, currentWeekNumber);
+        weeklySugar.push({
+          weekNumber: currentWeekNumber,
+          sugar: Number(scan.sugar),
+          weekKeys: [weekKey],
+        });
+      } else {
+        // Minggu yang sama, tambahkan sugar
+        const existing = weeklySugar.find(
+          (w) => w.weekNumber === currentWeekNumber,
+        );
+        if (existing) {
+          existing.sugar += Number(scan.sugar);
+          existing.weekKeys.push(weekKey);
+        }
+      }
+    });
+
+    // Format output sesuai permintaan: { week: "W1", sugar: ... }
+    const data = weeklySugar.map((item) => ({
+      week: `W${item.weekNumber}`,
+      sugar: item.sugar,
+    }));
+
+    return {
+      view: 'weekly',
+      mode: 'month',
+      year,
+      month,
+      data,
+    };
+  }
 
   async getMonthlyChartAll(userId: string) {
     const currentYear = getJakartaMoment().year();
