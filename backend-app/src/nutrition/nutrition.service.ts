@@ -33,15 +33,15 @@ function getJakartaHour(): number {
 // Ganti fungsi ini
 // Ganti fungsi getJakartaWeekKey() yang lama dengan kode berikut
 function getJakartaWeekKey(): string {
-  const now = getJakartaMoment();               // WIB
-  const year = now.year();                      // tahun, misal 2026
+  const now = getJakartaMoment(); // WIB
+  const year = now.year(); // tahun, misal 2026
   const startOfMonth = now.clone().startOf('month');
-  const dayOfMonth = now.date();                // tanggal 1-31
-  const startDayOfWeek = startOfMonth.day();    // 0=Minggu, 1=Senin, ..., 6=Sabtu
+  const dayOfMonth = now.date(); // tanggal 1-31
+  const startDayOfWeek = startOfMonth.day(); // 0=Minggu, 1=Senin, ..., 6=Sabtu
 
   // Hitung minggu relatif dalam bulan (1-5, kadang 6)
   let weekNumber = Math.ceil((dayOfMonth + startDayOfWeek) / 7);
-  weekNumber = Math.max(1, weekNumber);         // minimal 1
+  weekNumber = Math.max(1, weekNumber); // minimal 1
 
   return `${year}-W${weekNumber}`;
 }
@@ -680,47 +680,57 @@ export class NutritionService {
     };
   }
 
+  // async getWeeklyChartAll(userId: string) {
+  //   const now = getJakartaMoment(); // waktu WIB sekarang
+  //   const currentYear = now.year(); // tahun, misal 2026
+  //   const currentMonth = now.month() + 1; // bulan 1-12 (moment month 0-indexed)
+  //   return this.getWeeklyChartMonth(userId, currentYear, currentMonth);
+  //   const startOfYear = moment()
+  //     .tz('Asia/Jakarta')
+  //     .year(currentYear)
+  //     .startOf('year');
+  //   const endOfYear = moment()
+  //     .tz('Asia/Jakarta')
+  //     .year(currentYear)
+  //     .endOf('year');
+
+  //   const scans = await this.prisma.nutritionScan.findMany({
+  //     where: {
+  //       userId,
+  //       consumedAt: {
+  //         gte: startOfYear.toDate(),
+  //         lte: endOfYear.toDate(),
+  //       },
+  //     },
+  //   });
+
+  //   const weeklyData: Record<string, number> = {};
+  //   scans.forEach((scan) => {
+  //     if (scan.weekKey) {
+  //       weeklyData[scan.weekKey] =
+  //         (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
+  //     }
+  //   });
+
+  //   const sortedWeeks = Object.keys(weeklyData).sort();
+  //   const data = sortedWeeks.map((weekKey) => ({
+  //     week: weekKey,
+  //     sugar: weeklyData[weekKey],
+  //   }));
+
+  //   return {
+  //     view: 'weekly',
+  //     mode: 'all',
+  //     year: currentYear,
+  //     data,
+  //   };
+  // }
+
   async getWeeklyChartAll(userId: string) {
-    const currentYear = getJakartaMoment().year();
-    const startOfYear = moment()
-      .tz('Asia/Jakarta')
-      .year(currentYear)
-      .startOf('year');
-    const endOfYear = moment()
-      .tz('Asia/Jakarta')
-      .year(currentYear)
-      .endOf('year');
-
-    const scans = await this.prisma.nutritionScan.findMany({
-      where: {
-        userId,
-        consumedAt: {
-          gte: startOfYear.toDate(),
-          lte: endOfYear.toDate(),
-        },
-      },
-    });
-
-    const weeklyData: Record<string, number> = {};
-    scans.forEach((scan) => {
-      if (scan.weekKey) {
-        weeklyData[scan.weekKey] =
-          (weeklyData[scan.weekKey] || 0) + Number(scan.sugar);
-      }
-    });
-
-    const sortedWeeks = Object.keys(weeklyData).sort();
-    const data = sortedWeeks.map((weekKey) => ({
-      week: weekKey,
-      sugar: weeklyData[weekKey],
-    }));
-
-    return {
-      view: 'weekly',
-      mode: 'all',
-      year: currentYear,
-      data,
-    };
+    const now = getJakartaMoment();
+    const currentYear = now.year();
+    const currentMonth = now.month() + 1;
+    return this.getWeeklyChartMonth(userId, currentYear, currentMonth);
   }
 
   async getWeeklyChartMonth(userId: string, year: number, month: number) {
