@@ -25,9 +25,20 @@ function getJakartaHour(): number {
   return getJakartaMoment().hour();
 }
 
+// function getJakartaWeekKey(): string {
+//   const jakarta = getJakartaMoment();
+//   return `${jakarta.year()}-W${jakarta.week()}`;
+// }
+
+// Ganti fungsi ini
 function getJakartaWeekKey(): string {
-  const jakarta = getJakartaMoment();
-  return `${jakarta.year()}-W${jakarta.week()}`;
+  const now = getJakartaMoment();
+  const startOfMonth = now.clone().startOf('month');
+  const dayOfMonth = now.date();
+  const startDayOfWeek = startOfMonth.day(); // 0 Minggu, 1 Senin, ...
+  let weekNumber = Math.ceil((dayOfMonth + startDayOfWeek) / 7);
+  weekNumber = Math.max(1, weekNumber);
+  return `W${weekNumber}`;
 }
 
 function getJakartaMonthKey(): string {
